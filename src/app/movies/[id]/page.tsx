@@ -1,0 +1,255 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import StatusToggle from "@/components/StatusToggle";
+import { createClient } from "@/lib/supabase/server";
+import {
+  getMovieDetails,
+  pickTrailer,
+  pickWatchRegion,
+  REGION_NAMES,
+  type TmdbProvider,
+} from "@/lib/tmdb";
+import {
+  TMDB_BACKDROP_BASE,
+  TMDB_IMAGE_BASE,
+  TMDB_LOGO_BASE,
+  type Movie,
+} from "@/lib/types";
+
+// Reads the session on every request, so it renders on the server per request.
+export const instant = false;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function formatRuntime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} мин`;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) notFound();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // RLS only returns movies from the user's own list.
+  const { data: movie } = (await supabase
+    .from("movies")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()) as { data: Movie | null };
+  if (!movie) notFound();
+
+  const [details, addedByRes] = await Promise.all([
+    getMovieDetails(movie.tmdb_id),
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", movie.added_by)
+      .maybeSingle(),
+  ]);
+
+  const info = details.data;
+  const trailer = pickTrailer(info?.videos?.results);
+  const watch = pickWatchRegion(info?.["watch/providers"]?.results);
+  const posterPath = info?.poster_path ?? movie.poster_path;
+  const overview = info?.overview || movie.overview;
+  const addedByName: string = addedByRes.data?.display_name ?? "неизвестно";
+
+  const facts = [
+    movie.year ? String(movie.year) : null,
+    info?.runtime ? formatRuntime(info.runtime) : null,
+    info?.genres.length ? info.genres.map((g) => g.name).join(", ") : null,
+    info && info.vote_count > 0 ? `★ ${info.vote_average.toFixed(1)}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="relative flex min-h-screen w-full flex-col">
+      {info?.backdrop_path && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`${TMDB_BACKDROP_BASE}${info.backdrop_path}`}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 w-full object-cover opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]"
+        />
+      )}
+
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-6 sm:px-6">
+        <Link
+          href="/"
+          className="w-fit text-sm text-zinc-400 transition hover:text-zinc-100"
+        >
+          ← К списку
+        </Link>
+
+        <section className="flex flex-col gap-6 sm:flex-row">
+          {posterPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`${TMDB_IMAGE_BASE}${posterPath}`}
+              alt={movie.title}
+              className="aspect-[2/3] w-40 shrink-0 self-center rounded-xl object-cover shadow-lg sm:w-56 sm:self-start"
+            />
+          ) : (
+            <div className="flex aspect-[2/3] w-40 shrink-0 items-center justify-center self-center rounded-xl bg-zinc-800 text-sm text-zinc-500 sm:w-56 sm:self-start">
+              нет постера
+            </div>
+          )}
+
+          <div className="flex min-w-0 flex-col gap-3">
+            <div>
+              <h1 className="text-2xl font-bold leading-tight tracking-tight text-zinc-50 sm:text-3xl">
+                {movie.title}
+              </h1>
+              {movie.original_title && movie.original_title !== movie.title && (
+                <p className="mt-1 text-sm text-zinc-500">
+                  {movie.original_title}
+                </p>
+              )}
+            </div>
+
+            {facts.length > 0 && (
+              <p className="text-sm text-zinc-300">{facts.join(" · ")}</p>
+            )}
+
+            {info?.tagline && (
+              <p className="text-sm italic text-zinc-400">«{info.tagline}»</p>
+            )}
+
+            {overview ? (
+              <p className="text-sm leading-relaxed text-zinc-300">
+                {overview}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-500">Описания пока нет.</p>
+            )}
+
+            <p className="text-xs text-zinc-500">
+              добавил(а): {addedByName} ·{" "}
+              {movie.status === "watched" ? "уже посмотрели" : "хотим посмотреть"}
+            </p>
+
+            <div className="w-fit">
+              <StatusToggle movieId={movie.id} status={movie.status} />
+            </div>
+
+            {details.error && (
+              <p role="alert" className="text-xs text-red-400">
+                Не удалось загрузить подробности из TMDB: {details.error}
+              </p>
+            )}
+          </div>
+        </section>
+
+        {trailer && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-zinc-100">Трейлер</h2>
+            <div className="aspect-video w-full overflow-hidden rounded-xl border border-zinc-800 bg-black">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${trailer.key}`}
+                title={trailer.name}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full"
+              />
+            </div>
+          </section>
+        )}
+
+        {info && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-zinc-100">
+              Где посмотреть онлайн
+            </h2>
+            {watch ? (
+              <>
+                {watch.region !== "KG" && (
+                  <p className="text-xs text-zinc-500">
+                    Для Кыргызстана данных нет, показываем для региона «
+                    {REGION_NAMES[watch.region]}». Сервисы могут быть доступны
+                    не везде.
+                  </p>
+                )}
+                <ProviderRow
+                  label="По подписке"
+                  providers={watch.providers.flatrate}
+                />
+                <ProviderRow
+                  label="Бесплатно"
+                  providers={[
+                    ...(watch.providers.free ?? []),
+                    ...(watch.providers.ads ?? []),
+                  ]}
+                />
+                <ProviderRow label="Аренда" providers={watch.providers.rent} />
+                <ProviderRow label="Покупка" providers={watch.providers.buy} />
+                <a
+                  href={watch.providers.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-fit text-xs text-amber-400 hover:text-amber-300"
+                >
+                  Все варианты на TMDB ↗
+                </a>
+              </>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                TMDB пока не знает, где этот фильм доступен онлайн.
+              </p>
+            )}
+            <p className="text-xs text-zinc-600">Данные о сервисах: JustWatch</p>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProviderRow({
+  label,
+  providers,
+}: {
+  label: string;
+  providers: TmdbProvider[] | undefined;
+}) {
+  // The same service can appear under both "free" and "ads".
+  const unique = [
+    ...new Map((providers ?? []).map((p) => [p.provider_id, p])).values(),
+  ].sort((a, b) => a.display_priority - b.display_priority);
+  if (unique.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p>
+      <ul className="flex flex-wrap gap-2">
+        {unique.map((p) => (
+          <li
+            key={p.provider_id}
+            className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 py-1 pl-1 pr-3"
+          >
+            {p.logo_path ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`${TMDB_LOGO_BASE}${p.logo_path}`}
+                alt=""
+                className="h-8 w-8 rounded-md"
+              />
+            ) : (
+              <span className="h-8 w-8 rounded-md bg-zinc-800" />
+            )}
+            <span className="text-sm text-zinc-200">{p.provider_name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
