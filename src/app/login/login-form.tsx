@@ -1,0 +1,42 @@
+"use client";
+
+import { useActionState } from "react";
+import { login } from "@/app/auth/actions";
+import { buttonClass, inputClass } from "@/app/auth/auth-card";
+
+export function LoginForm() {
+  const [state, action, pending] = useActionState(login, {});
+
+  return (
+    <form action={action} className="space-y-4">
+      <label className="block space-y-1.5">
+        <span className="text-sm text-zinc-400">Email</span>
+        <input
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          className={inputClass}
+        />
+      </label>
+      <label className="block space-y-1.5">
+        <span className="text-sm text-zinc-400">Пароль</span>
+        <input
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          className={inputClass}
+        />
+      </label>
+      {state.error && (
+        <p role="alert" className="text-sm text-red-400">
+          {state.error}
+        </p>
+      )}
+      <button type="submit" disabled={pending} className={buttonClass}>
+        {pending ? "Входим..." : "Войти"}
+      </button>
+    </form>
+  );
+}
