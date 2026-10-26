@@ -27,6 +27,7 @@ export async function addMovie(movie: SearchResult): Promise<ActionResult> {
   const { error } = await supabase.from("movies").insert({
     list_id: listId,
     tmdb_id: movie.tmdb_id,
+    media_type: movie.media_type,
     title: movie.title,
     original_title: movie.original_title,
     year: movie.year,
@@ -37,10 +38,11 @@ export async function addMovie(movie: SearchResult): Promise<ActionResult> {
   });
 
   if (error) {
+    const noun = movie.media_type === "tv" ? "сериал" : "фильм";
     if (error.code === UNIQUE_VIOLATION) {
-      return { error: "Этот фильм уже в списке" };
+      return { error: `Этот ${noun} уже в списке` };
     }
-    return { error: "Не удалось добавить фильм" };
+    return { error: `Не удалось добавить ${noun}` };
   }
 
   revalidatePath("/");
@@ -61,7 +63,7 @@ export async function setStatus(
     .eq("id", id);
 
   if (error) {
-    return { error: "Не удалось обновить фильм" };
+    return { error: "Не удалось обновить статус" };
   }
 
   revalidatePath("/");
@@ -74,7 +76,7 @@ export async function deleteMovie(id: string): Promise<ActionResult> {
   const { error } = await supabase.from("movies").delete().eq("id", id);
 
   if (error) {
-    return { error: "Не удалось удалить фильм" };
+    return { error: "Не удалось удалить из списка" };
   }
 
   revalidatePath("/");

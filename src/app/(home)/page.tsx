@@ -88,7 +88,7 @@ export default async function Home({ searchParams }: PageProps) {
       />
 
       <nav
-        aria-label="Списки фильмов"
+        aria-label="Списки фильмов и сериалов"
         className="flex gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1"
       >
         <Link
@@ -114,8 +114,8 @@ export default async function Home({ searchParams }: PageProps) {
         nameById={nameById}
         emptyText={
           activeTab === "watched"
-            ? "Пока ни один фильм не отмечен как просмотренный."
-            : "Список пуст. Найдите фильм выше и добавьте его."
+            ? "Пока ничего не отмечено как просмотренное."
+            : "Список пуст. Найдите фильм или сериал выше и добавьте его."
         }
       />
     </div>

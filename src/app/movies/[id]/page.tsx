@@ -4,10 +4,12 @@ import StatusToggle from "@/components/StatusToggle";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import {
   getMovieDetails,
+  getTvDetails,
   pickTrailer,
   pickWatchRegion,
   REGION_NAMES,
   type TmdbProvider,
+  type TmdbSeason,
 } from "@/lib/tmdb";
 import {
   posterSrcSet,
@@ -26,6 +28,32 @@ function formatRuntime(minutes: number): string {
   const m = minutes % 60;
   if (h === 0) return `${m} мин`;
   return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+// Russian noun form for a count: plural(3, ["сезон", "сезона", "сезонов"]) → "3 сезона".
+function plural(n: number, [one, few, many]: [string, string, string]): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  const word =
+    mod10 === 1 && mod100 !== 11
+      ? one
+      : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+        ? few
+        : many;
+  return `${n} ${word}`;
+}
+
+const TV_STATUS_NAMES: Record<string, string> = {
+  "Returning Series": "продолжается",
+  "In Production": "в производстве",
+  Planned: "анонсирован",
+  Pilot: "пилот",
+  Ended: "завершён",
+  Canceled: "закрыт",
+};
+
+function yearOf(date: string | null): string | null {
+  return date ? date.slice(0, 4) : null;
 }
 
 export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
@@ -48,21 +76,55 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
     | null;
   if (!movie) notFound();
 
-  const details = await getMovieDetails(movie.tmdb_id);
+  const isTv = movie.media_type === "tv";
+  const details = isTv
+    ? await getTvDetails(movie.tmdb_id)
+    : await getMovieDetails(movie.tmdb_id);
 
   const info = details.data;
+  const tv = info && "number_of_seasons" in info ? info : null;
+  const film = info && "runtime" in info ? info : null;
   const trailer = pickTrailer(info?.videos?.results);
   const watch = pickWatchRegion(info?.["watch/providers"]?.results);
   const posterPath = info?.poster_path ?? movie.poster_path;
   const overview = info?.overview || movie.overview;
   const addedByName = movie.added_by_profile?.display_name ?? "неизвестно";
+  const noun = isTv ? "сериал" : "фильм";
+
+  // "2019–2023" for a finished series, "2019–…" for one still running.
+  let years = movie.year ? String(movie.year) : null;
+  if (tv) {
+    const first = yearOf(tv.first_air_date) ?? years;
+    const last = yearOf(tv.last_air_date);
+    const finished = tv.status === "Ended" || tv.status === "Canceled";
+    years = !first
+      ? null
+      : finished
+        ? last && last !== first ? `${first}–${last}` : first
+        : `${first}–…`;
+  }
+  const episodeMinutes = tv?.episode_run_time[0];
 
   const facts = [
-    movie.year ? String(movie.year) : null,
-    info?.runtime ? formatRuntime(info.runtime) : null,
+    isTv ? "Сериал" : null,
+    years,
+    film?.runtime ? formatRuntime(film.runtime) : null,
+    tv && tv.number_of_seasons > 0
+      ? plural(tv.number_of_seasons, ["сезон", "сезона", "сезонов"])
+      : null,
+    tv && tv.number_of_episodes > 0
+      ? plural(tv.number_of_episodes, ["серия", "серии", "серий"])
+      : null,
+    episodeMinutes ? `~${formatRuntime(episodeMinutes)} серия` : null,
+    tv && TV_STATUS_NAMES[tv.status] ? TV_STATUS_NAMES[tv.status] : null,
     info?.genres.length ? info.genres.map((g) => g.name).join(", ") : null,
     info && info.vote_count > 0 ? `★ ${info.vote_average.toFixed(1)}` : null,
   ].filter(Boolean);
+
+  // Season 0 holds specials; it is not part of the main run.
+  const seasons = (tv?.seasons ?? []).filter(
+    (season) => season.season_number > 0 && season.episode_count > 0,
+  );
 
   return (
     <div className="relative flex min-h-screen w-full flex-col">
@@ -162,6 +224,17 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
           </section>
         )}
 
+        {seasons.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-zinc-100">Сезоны</h2>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {seasons.map((season) => (
+                <SeasonRow key={season.id} season={season} />
+              ))}
+            </ul>
+          </section>
+        )}
+
         {info && (
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-semibold text-zinc-100">
@@ -200,7 +273,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
               </>
             ) : (
               <p className="text-sm text-zinc-500">
-                TMDB пока не знает, где этот фильм доступен онлайн.
+                TMDB пока не знает, где этот {noun} доступен онлайн.
               </p>
             )}
             <p className="text-xs text-zinc-600">Данные о сервисах: JustWatch</p>
@@ -208,6 +281,22 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
         )}
       </div>
     </div>
+  );
+}
+
+function SeasonRow({ season }: { season: TmdbSeason }) {
+  const year = yearOf(season.air_date);
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
+      <span className="min-w-0 truncate text-sm text-zinc-200">
+        {season.name}
+      </span>
+      <span className="flex-none text-xs text-zinc-500">
+        {[year, plural(season.episode_count, ["серия", "серии", "серий"])]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </li>
   );
 }
 
