@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { setStatus } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
-import { TMDB_IMAGE_BASE, type Movie } from "@/lib/types";
+import { tmdbImage, type Movie } from "@/lib/types";
 
 type RandomPickProps = {
   movies: Movie[];
@@ -91,7 +91,7 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={movie.id}
-                  src={`${TMDB_IMAGE_BASE}${movie.poster_path}`}
+                  src={tmdbImage(movie.poster_path, "w342")}
                   alt={movie.title}
                   className="aspect-[2/3] w-32 shrink-0 rounded-lg object-cover"
                 />

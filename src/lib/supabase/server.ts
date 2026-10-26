@@ -26,3 +26,12 @@ export async function createClient() {
     },
   );
 }
+
+// Id of the signed-in user, or null. getClaims verifies the JWT locally when the
+// project uses asymmetric signing keys, so it skips the Auth server round trip of getUser.
+export async function getUserId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims.sub ?? null;
+}

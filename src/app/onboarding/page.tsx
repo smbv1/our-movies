@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import { OnboardingForms } from "./onboarding-forms";
 
 // Reads the session on every request, so it renders on the server per request.
@@ -7,18 +7,16 @@ export const instant = false;
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getUserId(supabase);
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("list_id")
-    .eq("id", user.id)
+    .eq("id", userId)
     .maybeSingle();
 
   if (profile?.list_id) {

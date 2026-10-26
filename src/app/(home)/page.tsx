@@ -2,12 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout } from "@/app/auth/actions";
 import LogoutButton from "@/components/LogoutButton";
-import MovieCard from "@/components/MovieCard";
+import MovieGrid from "@/components/MovieGrid";
 import MovieSearch from "@/components/MovieSearch";
 import RandomPick from "@/components/RandomPick";
 import TabPendingIndicator from "@/components/TabPendingIndicator";
-import { createClient } from "@/lib/supabase/server";
-import type { List, Movie, Profile } from "@/lib/types";
+import { createClient, getUserId } from "@/lib/supabase/server";
+import type { List, Movie } from "@/lib/types";
 
 // Reads the session on every request, so it renders on the server per request.
 export const instant = false;
@@ -23,44 +23,28 @@ export default async function Home({ searchParams }: PageProps) {
   const activeTab = tab === "watched" ? "watched" : "want";
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const profileRes = await supabase
-    .from("profiles")
-    .select("id, display_name, list_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  const profile: Profile | null = profileRes.data;
-  if (!profile?.list_id) redirect("/onboarding");
-  const listId = profile.list_id;
-
-  const [listRes, membersRes, moviesRes] = await Promise.all([
-    supabase
-      .from("lists")
-      .select("id, name, invite_code")
-      .eq("id", listId)
-      .single(),
-    supabase
-      .from("profiles")
-      .select("id, display_name")
-      .eq("list_id", listId),
+  // RLS scopes every table to the signed-in user's list, so nothing here needs
+  // the profile first and all requests go out at once.
+  const [userId, listRes, membersRes, moviesRes] = await Promise.all([
+    getUserId(supabase),
+    supabase.from("lists").select("id, name, invite_code").maybeSingle(),
+    supabase.from("profiles").select("id, display_name"),
     supabase
       .from("movies")
       .select("*")
-      .eq("list_id", listId)
       .order("created_at", { ascending: false }),
   ]);
+  if (!userId) redirect("/login");
 
   const list: List | null = listRes.data;
+  // Without a list the user only sees their own profile and no movies.
+  if (!list) redirect("/onboarding");
   const members: Member[] = membersRes.data ?? [];
   const movies: Movie[] = moviesRes.data ?? [];
 
-  if (!list) redirect("/onboarding");
-
-  const nameById = new Map(members.map((m) => [m.id, m.display_name]));
+  const nameById = Object.fromEntries(
+    members.map((m) => [m.id, m.display_name]),
+  );
   const wantMovies = movies.filter((m) => m.status === "want");
   const watchedMovies = movies.filter((m) => m.status === "watched");
   const shown = activeTab === "watched" ? watchedMovies : wantMovies;
@@ -100,7 +84,7 @@ export default async function Home({ searchParams }: PageProps) {
 
       <RandomPick
         movies={wantMovies}
-        nameById={Object.fromEntries(nameById)}
+        nameById={nameById}
       />
 
       <nav
@@ -125,24 +109,15 @@ export default async function Home({ searchParams }: PageProps) {
         </Link>
       </nav>
 
-      {shown.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-zinc-800 px-4 py-12 text-center text-sm text-zinc-500">
-          {activeTab === "watched"
+      <MovieGrid
+        movies={shown}
+        nameById={nameById}
+        emptyText={
+          activeTab === "watched"
             ? "Пока ни один фильм не отмечен как просмотренный."
-            : "Список пуст. Найдите фильм выше и добавьте его."}
-        </p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {shown.map((movie) => (
-            <li key={movie.id}>
-              <MovieCard
-                movie={movie}
-                addedByName={nameById.get(movie.added_by) ?? "неизвестно"}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+            : "Список пуст. Найдите фильм выше и добавьте его."
+        }
+      />
     </div>
   );
 }
