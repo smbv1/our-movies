@@ -32,31 +32,52 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 
+  // Tolerate a pasted "Bearer " prefix, quotes or whitespace around the token.
+  const credential = (process.env.TMDB_API_TOKEN ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^Bearer\s+/i, "");
+  if (!credential) {
+    console.error("TMDB_API_TOKEN is not set");
+    return NextResponse.json(
+      { error: "На сервере не задана переменная TMDB_API_TOKEN" },
+      { status: 500 },
+    );
+  }
+
   const params = new URLSearchParams({
     query: q,
     language: "ru-RU",
     include_adult: "false",
   });
+  const headers: Record<string, string> = { Accept: "application/json" };
+  // A 32-char hex value is the short v3 "API Key"; anything else is the v4 read access token.
+  if (/^[0-9a-f]{32}$/i.test(credential)) {
+    params.set("api_key", credential);
+  } else {
+    headers.Authorization = `Bearer ${credential}`;
+  }
 
   let data: TmdbSearchResponse;
   try {
     const res = await fetch(
       `https://api.themoviedb.org/3/search/movie?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      },
+      { headers, cache: "no-store" },
     );
     if (!res.ok) {
-      throw new Error(`TMDB responded with ${res.status}`);
+      const body = await res.text();
+      console.error(`TMDB search failed: ${res.status} ${body.slice(0, 300)}`);
+      const reason =
+        res.status === 401
+          ? "TMDB не принял токен (401), проверь TMDB_API_TOKEN"
+          : `TMDB ответил ошибкой ${res.status}`;
+      return NextResponse.json({ error: reason }, { status: 502 });
     }
     data = (await res.json()) as TmdbSearchResponse;
-  } catch {
+  } catch (err) {
+    console.error("TMDB search request failed", err);
     return NextResponse.json(
-      { error: "Не удалось получить данные из TMDB" },
+      { error: "Не удалось связаться с TMDB" },
       { status: 502 },
     );
   }
