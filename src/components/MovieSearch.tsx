@@ -32,14 +32,21 @@ export default function MovieSearch() {
           { signal: controller.signal },
         );
         if (!res.ok) {
-          throw new Error(`Search failed with ${res.status}`);
+          const body = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(body?.error ?? `Ошибка поиска ${res.status}`);
         }
         const data = (await res.json()) as SearchResult[];
         setResults(data);
-      } catch {
+      } catch (err) {
         if (controller.signal.aborted) return;
         setResults([]);
-        setSearchError("Не удалось найти фильмы. Попробуйте ещё раз.");
+        setSearchError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Не удалось найти фильмы. Попробуйте ещё раз.",
+        );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
