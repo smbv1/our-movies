@@ -1,14 +1,12 @@
 -- Our Movies: shared watchlist schema.
 -- Run once in Supabase: Dashboard -> SQL Editor -> paste -> Run.
 
-create extension if not exists pgcrypto;
-
 -- A shared list (one per couple).
 create table public.lists (
   id uuid primary key default gen_random_uuid(),
   name text not null default 'Наш список',
   invite_code text not null unique
-    default upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6)),
+    default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)),
   created_at timestamptz not null default now()
 );
 
@@ -138,3 +136,12 @@ create policy "members update movies" on public.movies
 
 create policy "members delete movies" on public.movies
   for delete to authenticated using (list_id = public.my_list_id());
+
+-- Functions are callable only by signed-in users; the trigger function by nobody.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.my_list_id() from public, anon;
+revoke execute on function public.create_list() from public, anon;
+revoke execute on function public.join_list(text) from public, anon;
+grant execute on function public.my_list_id() to authenticated;
+grant execute on function public.create_list() to authenticated;
+grant execute on function public.join_list(text) to authenticated;
