@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { addMovie } from "@/app/movies/actions";
+import Spinner from "@/components/Spinner";
 import { TMDB_IMAGE_BASE, type SearchResult } from "@/lib/types";
 
 const MIN_QUERY_LENGTH = 2;
@@ -78,18 +79,27 @@ export default function MovieSearch() {
 
   return (
     <section className="w-full">
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setActionError(null);
-        }}
-        placeholder="Найти фильм…"
-        aria-label="Найти фильм"
-        autoComplete="off"
-        className="h-12 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20"
-      />
+      <div className="relative">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActionError(null);
+          }}
+          placeholder="Найти фильм…"
+          aria-label="Найти фильм"
+          autoComplete="off"
+          className={`h-12 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20 ${
+            loading ? "pr-12" : ""
+          }`}
+        />
+        {loading && (
+          <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-zinc-400">
+            <Spinner label="Поиск" />
+          </div>
+        )}
+      </div>
 
       {actionError && (
         <p role="alert" className="mt-3 text-sm text-red-400">
@@ -100,7 +110,8 @@ export default function MovieSearch() {
       {isActive && (loading || searchError || visibleResults.length > 0) && (
         <ul className="mt-3 divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900">
           {loading && visibleResults.length === 0 && (
-            <li className="px-4 py-6 text-center text-sm text-zinc-500">
+            <li className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-zinc-500">
+              <Spinner />
               Ищем…
             </li>
           )}
@@ -139,8 +150,9 @@ export default function MovieSearch() {
                 type="button"
                 onClick={() => handleAdd(movie)}
                 disabled={isPending}
-                className="flex-none rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex flex-none items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
+                {isPending && pendingId === movie.tmdb_id && <Spinner />}
                 {isPending && pendingId === movie.tmdb_id
                   ? "Добавляем…"
                   : "Добавить"}

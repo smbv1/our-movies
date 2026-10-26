@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteMovie, setStatus } from "@/app/movies/actions";
+import Spinner from "@/components/Spinner";
 import { TMDB_IMAGE_BASE, type Movie } from "@/lib/types";
 
 type MovieCardProps = {
@@ -9,25 +10,40 @@ type MovieCardProps = {
   addedByName: string;
 };
 
+type PendingAction = "status" | "delete";
+
 export default function MovieCard({ movie, addedByName }: MovieCardProps) {
   const [error, setError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleStatus() {
     const next = movie.status === "want" ? "watched" : "want";
     setError(null);
+    setPendingAction("status");
     startTransition(async () => {
-      const result = await setStatus(movie.id, next);
-      if (result.error) setError(result.error);
+      try {
+        const result = await setStatus(movie.id, next);
+        if (result.error) setError(result.error);
+      } finally {
+        setPendingAction(null);
+      }
     });
   }
 
   function handleDelete() {
     if (!window.confirm(`Удалить «${movie.title}» из списка?`)) return;
     setError(null);
+    setPendingAction("delete");
     startTransition(async () => {
-      const result = await deleteMovie(movie.id);
-      if (result.error) setError(result.error);
+      try {
+        const result = await deleteMovie(movie.id);
+        if (result.error) setError(result.error);
+      } finally {
+        setPendingAction(null);
+      }
     });
   }
 
@@ -82,21 +98,37 @@ export default function MovieCard({ movie, addedByName }: MovieCardProps) {
             type="button"
             onClick={handleStatus}
             disabled={isPending}
-            className={`rounded-lg px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
               isWatched
                 ? "border border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                 : "bg-amber-500 text-zinc-950 hover:bg-amber-400"
             }`}
           >
-            {isWatched ? "Вернуть в «Хотим»" : "Посмотрели ✓"}
+            {pendingAction === "status" ? (
+              <>
+                <Spinner />
+                Сохраняем…
+              </>
+            ) : isWatched ? (
+              "Вернуть в «Хотим»"
+            ) : (
+              "Посмотрели ✓"
+            )}
           </button>
           <button
             type="button"
             onClick={handleDelete}
             disabled={isPending}
-            className="rounded-lg px-3 py-2 text-xs text-red-400 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs text-red-400 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Удалить
+            {pendingAction === "delete" ? (
+              <>
+                <Spinner />
+                Удаляем…
+              </>
+            ) : (
+              "Удалить"
+            )}
           </button>
         </div>
       </div>

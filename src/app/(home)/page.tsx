@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout } from "@/app/auth/actions";
+import LogoutButton from "@/components/LogoutButton";
 import MovieCard from "@/components/MovieCard";
 import MovieSearch from "@/components/MovieSearch";
+import TabPendingIndicator from "@/components/TabPendingIndicator";
 import { createClient } from "@/lib/supabase/server";
 import type { List, Movie, Profile } from "@/lib/types";
 
@@ -89,12 +91,7 @@ export default async function Home({ searchParams }: PageProps) {
           </p>
         </div>
         <form action={logout}>
-          <button
-            type="submit"
-            className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 transition hover:bg-zinc-900"
-          >
-            Выйти
-          </button>
+          <LogoutButton />
         </form>
       </header>
 
@@ -110,6 +107,7 @@ export default async function Home({ searchParams }: PageProps) {
           className={tabClass(activeTab === "want")}
         >
           Хотим посмотреть ({wantMovies.length})
+          <TabPendingIndicator />
         </Link>
         <Link
           href="/?tab=watched"
@@ -117,6 +115,7 @@ export default async function Home({ searchParams }: PageProps) {
           className={tabClass(activeTab === "watched")}
         >
           Посмотрели ({watchedMovies.length})
+          <TabPendingIndicator />
         </Link>
       </nav>
 

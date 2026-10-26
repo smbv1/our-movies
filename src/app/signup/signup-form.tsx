@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { signup } from "@/app/auth/actions";
 import { buttonClass, inputClass } from "@/app/auth/auth-card";
+import Spinner from "@/components/Spinner";
 
 export function SignupForm() {
   const [state, action, pending] = useActionState(signup, {});
@@ -53,7 +54,12 @@ export function SignupForm() {
           {state.error}
         </p>
       )}
-      <button type="submit" disabled={pending} className={buttonClass}>
+      <button
+        type="submit"
+        disabled={pending}
+        className={`${buttonClass} inline-flex items-center justify-center gap-2`}
+      >
+        {pending && <Spinner />}
         {pending ? "Создаём аккаунт..." : "Зарегистрироваться"}
       </button>
     </form>
