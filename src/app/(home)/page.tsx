@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { logout } from "@/app/auth/actions";
-import LogoutButton from "@/components/LogoutButton";
-import MovieGrid from "@/components/MovieGrid";
+import Logo from "@/components/Logo";
+import type { Member } from "@/components/MemberAvatar";
+import MovieList from "@/components/MovieList";
 import MovieSearch from "@/components/MovieSearch";
+import PairButton from "@/components/PairButton";
 import RandomPick from "@/components/RandomPick";
 import TabPendingIndicator from "@/components/TabPendingIndicator";
 import { createClient, getUserId } from "@/lib/supabase/server";
-import type { List, Movie } from "@/lib/types";
+import { searchKey, type List, type Movie, type MovieStatus } from "@/lib/types";
 
 // Reads the session on every request, so it renders on the server per request.
 export const instant = false;
@@ -15,8 +16,6 @@ export const instant = false;
 type PageProps = {
   searchParams: Promise<{ tab?: string }>;
 };
-
-type Member = { id: string; display_name: string };
 
 export default async function Home({ searchParams }: PageProps) {
   const { tab } = await searchParams;
@@ -28,7 +27,10 @@ export default async function Home({ searchParams }: PageProps) {
   const [userId, listRes, membersRes, moviesRes] = await Promise.all([
     getUserId(supabase),
     supabase.from("lists").select("id, name, invite_code").maybeSingle(),
-    supabase.from("profiles").select("id, display_name"),
+    supabase
+      .from("profiles")
+      .select("id, display_name")
+      .order("created_at", { ascending: true }),
     supabase
       .from("movies")
       .select("*")
@@ -45,79 +47,76 @@ export default async function Home({ searchParams }: PageProps) {
   const nameById = Object.fromEntries(
     members.map((m) => [m.id, m.display_name]),
   );
+  const existing: Record<string, MovieStatus> = Object.fromEntries(
+    movies.map((m) => [searchKey(m), m.status]),
+  );
   const wantMovies = movies.filter((m) => m.status === "want");
   const watchedMovies = movies.filter((m) => m.status === "watched");
   const shown = activeTab === "watched" ? watchedMovies : wantMovies;
 
   const tabClass = (isActive: boolean) =>
-    `flex-1 rounded-lg px-3 py-2 text-center text-sm font-medium transition ${
+    `flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition ${
       isActive
-        ? "bg-zinc-800 text-zinc-50"
-        : "text-zinc-400 hover:text-zinc-200"
+        ? "bg-zinc-100 text-zinc-900 shadow"
+        : "text-zinc-400 hover:text-zinc-100"
+    }`;
+  const countClass = (isActive: boolean) =>
+    `rounded-full px-1.5 text-xs tabular-nums ${
+      isActive ? "bg-zinc-900/10" : "bg-zinc-800"
     }`;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-50">
+    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-24 sm:px-6">
+      <header className="flex items-center justify-between gap-3 pb-3 pt-[max(1rem,env(safe-area-inset-top))]">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5">
+          <Logo className="h-9 w-9 flex-none" />
+          <span className="truncate text-xl font-bold tracking-tight text-zinc-50">
             Наши фильмы
-          </h1>
-          {members.length > 0 && (
-            <p className="mt-1 text-sm text-zinc-400">
-              {members.map((m) => m.display_name).join(", ")}
-            </p>
-          )}
-          <p className="mt-1 text-sm text-zinc-500">
-            Код для приглашения:{" "}
-            <span className="font-mono font-semibold tracking-widest text-amber-400">
-              {list.invite_code}
-            </span>
-          </p>
-        </div>
-        <form action={logout}>
-          <LogoutButton />
-        </form>
+          </span>
+        </Link>
+        <PairButton members={members} inviteCode={list.invite_code} />
       </header>
 
-      <MovieSearch />
-
-      <RandomPick
-        movies={wantMovies}
-        nameById={nameById}
-      />
-
-      <nav
-        aria-label="Списки фильмов и сериалов"
-        className="flex gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1"
-      >
-        <Link
-          href="/?tab=want"
-          aria-current={activeTab === "want" ? "page" : undefined}
-          className={tabClass(activeTab === "want")}
+      {/* Search and tabs stay on screen while the list scrolls. */}
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2 border-b border-zinc-800/60 bg-stone-950/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:flex-row sm:items-center sm:px-6">
+        <div className="sm:flex-1">
+          <MovieSearch existing={existing} />
+        </div>
+        <nav
+          aria-label="Списки фильмов и сериалов"
+          className="flex gap-1 rounded-xl bg-zinc-900 p-1 ring-1 ring-zinc-800 sm:w-auto"
         >
-          Хотим посмотреть ({wantMovies.length})
-          <TabPendingIndicator />
-        </Link>
-        <Link
-          href="/?tab=watched"
-          aria-current={activeTab === "watched" ? "page" : undefined}
-          className={tabClass(activeTab === "watched")}
-        >
-          Посмотрели ({watchedMovies.length})
-          <TabPendingIndicator />
-        </Link>
-      </nav>
+          <Link
+            href="/?tab=want"
+            aria-current={activeTab === "want" ? "page" : undefined}
+            className={tabClass(activeTab === "want")}
+          >
+            Хотим
+            <span className={countClass(activeTab === "want")}>
+              {wantMovies.length}
+            </span>
+            <TabPendingIndicator />
+          </Link>
+          <Link
+            href="/?tab=watched"
+            aria-current={activeTab === "watched" ? "page" : undefined}
+            className={tabClass(activeTab === "watched")}
+          >
+            Посмотрели
+            <span className={countClass(activeTab === "watched")}>
+              {watchedMovies.length}
+            </span>
+            <TabPendingIndicator />
+          </Link>
+        </nav>
+      </div>
 
-      <MovieGrid
-        movies={shown}
-        nameById={nameById}
-        emptyText={
-          activeTab === "watched"
-            ? "Пока ничего не отмечено как просмотренное."
-            : "Список пуст. Найдите фильм или сериал выше и добавьте его."
-        }
-      />
+      <main className="flex flex-col gap-5 pt-5">
+        {activeTab === "want" && (
+          <RandomPick movies={wantMovies} nameById={nameById} />
+        )}
+        <MovieList movies={shown} members={members} tab={activeTab} />
+      </main>
     </div>
   );
 }

@@ -42,6 +42,11 @@ export type SearchResult = {
   overview: string | null;
 };
 
+// Identifies a TMDB title across films and series, e.g. "tv-1396".
+export function searchKey(m: { media_type: MediaType; tmdb_id: number }): string {
+  return `${m.media_type}-${m.tmdb_id}`;
+}
+
 export const TMDB_IMAGE_ORIGIN = "https://image.tmdb.org";
 
 // Pre-sized images TMDB serves from its CDN; pick the smallest that covers the slot.

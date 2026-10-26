@@ -1,0 +1,285 @@
+"use client";
+
+import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { deleteMovie, setStatus } from "@/app/movies/actions";
+import EmptyState from "@/components/EmptyState";
+import MemberAvatar, { type Member } from "@/components/MemberAvatar";
+import MovieCard from "@/components/MovieCard";
+import { useToast } from "@/components/Toaster";
+import type { MediaType, Movie, MovieStatus } from "@/lib/types";
+
+type MovieListProps = {
+  // Everything in the current tab.
+  movies: Movie[];
+  members: Member[];
+  tab: MovieStatus;
+};
+
+type TypeFilter = "all" | MediaType;
+type SortKey = "added" | "watched" | "year" | "title";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  added: "Сначала новые",
+  watched: "По дате просмотра",
+  year: "По году выхода",
+  title: "По названию",
+};
+
+// Cards that the current tab shows above the fold: loaded first, the rest lazily.
+const EAGER_COUNT = 4;
+
+const byTitle = new Intl.Collator("ru");
+
+function sortMovies(movies: Movie[], key: SortKey): Movie[] {
+  const sorted = [...movies];
+  switch (key) {
+    case "added":
+      return sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    case "watched":
+      return sorted.sort((a, b) =>
+        (b.watched_at ?? "").localeCompare(a.watched_at ?? ""),
+      );
+    case "year":
+      return sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    case "title":
+      return sorted.sort((a, b) => byTitle.compare(a.title, b.title));
+  }
+}
+
+function focusSearch() {
+  const input = document.getElementById("movie-search");
+  input?.scrollIntoView({ block: "center", behavior: "smooth" });
+  input?.focus();
+}
+
+export default function MovieList({ movies, members, tab }: MovieListProps) {
+  const toast = useToast();
+  const [, startTransition] = useTransition();
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [adderFilter, setAdderFilter] = useState<string>("all");
+  // The watched tab reads best by when you watched it; the want tab by when it was added.
+  const [sortByTab, setSortByTab] = useState<Record<MovieStatus, SortKey>>({
+    want: "added",
+    watched: "watched",
+  });
+  const sort = sortByTab[tab];
+
+  // A card leaves the tab as soon as its status changes or it is deleted. If the
+  // action fails, the transition ends and the card comes back.
+  const [leavingIds, markLeaving] = useOptimistic(
+    new Set<string>(),
+    (ids, id: string) => new Set(ids).add(id),
+  );
+  // Deleted cards wait here while the "Отменить" toast is up.
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  const indexById = useMemo(
+    () => Object.fromEntries(members.map((m, i) => [m.id, i])),
+    [members],
+  );
+  const nameById = useMemo(
+    () => Object.fromEntries(members.map((m) => [m.id, m.display_name])),
+    [members],
+  );
+
+  const isGone = (id: string) => leavingIds.has(id) || deletingIds.has(id);
+  const present = movies.filter((m) => !isGone(m.id));
+  const filtered = sortMovies(
+    present.filter(
+      (m) =>
+        (typeFilter === "all" || m.media_type === typeFilter) &&
+        (adderFilter === "all" || m.added_by === adderFilter),
+    ),
+    sort,
+  );
+  const isFiltered = typeFilter !== "all" || adderFilter !== "all";
+
+  function changeStatus(movie: Movie, next: MovieStatus) {
+    startTransition(async () => {
+      markLeaving(movie.id);
+      const result = await setStatus(movie.id, next);
+      if (result.error) {
+        toast.show({ message: result.error, tone: "error" });
+        return;
+      }
+      const prev = movie.status;
+      toast.show({
+        message:
+          next === "watched"
+            ? `«${movie.title}» → в «Посмотрели»`
+            : `«${movie.title}» → снова в «Хотим»`,
+        action: {
+          label: "Отменить",
+          onClick: () =>
+            startTransition(async () => {
+              const undo = await setStatus(movie.id, prev);
+              if (undo.error) toast.show({ message: undo.error, tone: "error" });
+            }),
+        },
+      });
+    });
+  }
+
+  function forgetDeleting(id: string) {
+    setDeletingIds((ids) => {
+      const next = new Set(ids);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  // The card hides at once; the row is only deleted when the toast expires unused.
+  function remove(movie: Movie) {
+    setDeletingIds((ids) => new Set(ids).add(movie.id));
+    toast.show({
+      message: `«${movie.title}» удалён из списка`,
+      action: { label: "Отменить", onClick: () => forgetDeleting(movie.id) },
+      onExpire: () =>
+        startTransition(async () => {
+          markLeaving(movie.id);
+          const result = await deleteMovie(movie.id);
+          forgetDeleting(movie.id);
+          if (result.error) toast.show({ message: result.error, tone: "error" });
+        }),
+    });
+  }
+
+  if (present.length === 0) {
+    return tab === "want" ? (
+      <EmptyState
+        icon="🍿"
+        title="Пока нечего смотреть"
+        hint="Найдите фильм или сериал в поиске сверху и добавьте его. Он появится здесь у вас обоих."
+        action={
+          <button
+            type="button"
+            onClick={focusSearch}
+            className="mt-1 rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-300"
+          >
+            Найти фильм
+          </button>
+        }
+      />
+    ) : (
+      <EmptyState
+        icon="🎬"
+        title="Здесь будет ваша история"
+        hint="Посмотрели что-то из «Хотим»? Нажмите ✓ на карточке, и фильм переедет сюда с датой просмотра."
+      />
+    );
+  }
+
+  const chipClass = (active: boolean) =>
+    `inline-flex h-8 flex-none items-center gap-1.5 rounded-full px-3 text-xs font-medium transition ${
+      active
+        ? "bg-zinc-100 text-zinc-900"
+        : "bg-zinc-900 text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-100"
+    }`;
+
+  const hasTv = present.some((m) => m.media_type === "tv");
+  const hasMovies = present.some((m) => m.media_type === "movie");
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {hasTv && hasMovies && (
+          <div role="group" aria-label="Тип" className="flex gap-1.5">
+            {(
+              [
+                ["all", "Все"],
+                ["movie", "Фильмы"],
+                ["tv", "Сериалы"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={typeFilter === value}
+                onClick={() => setTypeFilter(value)}
+                className={chipClass(typeFilter === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {members.length > 1 && (
+          <div role="group" aria-label="Кто добавил" className="flex gap-1.5">
+            {members.map((m, i) => {
+              const active = adderFilter === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setAdderFilter(active ? "all" : m.id)}
+                  title={`Добавил(а) ${m.display_name}`}
+                  className={chipClass(active)}
+                >
+                  <MemberAvatar name={m.display_name} index={i} size="xs" />
+                  {m.display_name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <label className="ml-auto flex items-center gap-2 text-xs text-zinc-500">
+          <span className="sr-only sm:not-sr-only">Сортировка</span>
+          <select
+            value={sort}
+            onChange={(e) =>
+              setSortByTab((s) => ({ ...s, [tab]: e.target.value as SortKey }))
+            }
+            className="h-8 rounded-full border-0 bg-zinc-900 px-3 text-xs text-zinc-200 ring-1 ring-zinc-800 outline-none focus:ring-amber-500/50"
+          >
+            {(Object.keys(SORT_LABELS) as SortKey[])
+              .filter((key) => key !== "watched" || tab === "watched")
+              .map((key) => (
+                <option key={key} value={key}>
+                  {SORT_LABELS[key]}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
+
+      {filtered.length === 0 && isFiltered && (
+        <EmptyState
+          icon="🔍"
+          title="Под фильтр ничего не подошло"
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                setTypeFilter("all");
+                setAdderFilter("all");
+              }}
+              className="mt-1 rounded-lg px-4 py-2 text-sm font-medium text-amber-400 ring-1 ring-amber-400/40 transition hover:bg-amber-400/10"
+            >
+              Сбросить фильтры
+            </button>
+          }
+        />
+      )}
+
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        {filtered.map((movie, i) => (
+          <li key={movie.id}>
+            <MovieCard
+              movie={movie}
+              addedByName={nameById[movie.added_by] ?? "?"}
+              addedByIndex={indexById[movie.added_by] ?? -1}
+              eager={i < EAGER_COUNT}
+              onToggleStatus={() =>
+                changeStatus(movie, movie.status === "want" ? "watched" : "want")
+              }
+              onDelete={() => remove(movie)}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
