@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { deleteMovie, setStatus } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
@@ -55,24 +56,31 @@ export default function MovieCard({ movie, addedByName }: MovieCardProps) {
         isPending ? "opacity-60" : ""
       }`}
     >
-      {movie.poster_path ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`${TMDB_IMAGE_BASE}${movie.poster_path}`}
-          alt={movie.title}
-          loading="lazy"
-          className="aspect-[2/3] w-full object-cover"
-        />
-      ) : (
-        <div className="flex aspect-[2/3] w-full items-center justify-center bg-zinc-800 text-sm text-zinc-500">
-          нет постера
-        </div>
-      )}
+      <Link href={`/movies/${movie.id}`} aria-label={`Подробнее: ${movie.title}`}>
+        {movie.poster_path ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`${TMDB_IMAGE_BASE}${movie.poster_path}`}
+            alt={movie.title}
+            loading="lazy"
+            className="aspect-[2/3] w-full object-cover"
+          />
+        ) : (
+          <div className="flex aspect-[2/3] w-full items-center justify-center bg-zinc-800 text-sm text-zinc-500">
+            нет постера
+          </div>
+        )}
+      </Link>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div>
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-zinc-100">
-            {movie.title}
+            <Link
+              href={`/movies/${movie.id}`}
+              className="transition hover:text-amber-400"
+            >
+              {movie.title}
+            </Link>
           </h3>
           <p className="text-xs text-zinc-500">
             {movie.year ?? "год неизвестен"}

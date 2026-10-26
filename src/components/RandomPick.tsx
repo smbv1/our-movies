@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { setStatus } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
@@ -115,6 +116,12 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
                 <p className="text-xs text-zinc-500">
                   добавил(а): {nameById[movie.added_by] ?? "неизвестно"}
                 </p>
+                <Link
+                  href={`/movies/${movie.id}`}
+                  className="mt-1 w-fit text-xs text-amber-400 hover:text-amber-300"
+                >
+                  Подробнее, трейлер и где смотреть →
+                </Link>
               </div>
             </div>
 

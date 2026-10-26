@@ -68,6 +68,7 @@ export async function setStatus(
   }
 
   revalidatePath("/");
+  revalidatePath(`/movies/${id}`);
   return { error: null };
 }
 

@@ -38,3 +38,5 @@ export type SearchResult = {
 };
 
 export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
+export const TMDB_LOGO_BASE = "https://image.tmdb.org/t/p/w92";
+export const TMDB_BACKDROP_BASE = "https://image.tmdb.org/t/p/w1280";

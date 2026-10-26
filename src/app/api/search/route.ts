@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { tmdbGet } from "@/lib/tmdb";
 import type { SearchResult } from "@/lib/types";
 
 type TmdbMovie = {
@@ -32,57 +33,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // Tolerate a pasted "Bearer " prefix, quotes or whitespace around the token.
-  const credential = (process.env.TMDB_API_TOKEN ?? "")
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .replace(/^Bearer\s+/i, "");
-  if (!credential) {
-    console.error("TMDB_API_TOKEN is not set");
-    return NextResponse.json(
-      { error: "На сервере не задана переменная TMDB_API_TOKEN" },
-      { status: 500 },
-    );
-  }
-
-  const params = new URLSearchParams({
+  const res = await tmdbGet<TmdbSearchResponse>("/search/movie", {
     query: q,
     language: "ru-RU",
     include_adult: "false",
   });
-  const headers: Record<string, string> = { Accept: "application/json" };
-  // A 32-char hex value is the short v3 "API Key"; anything else is the v4 read access token.
-  if (/^[0-9a-f]{32}$/i.test(credential)) {
-    params.set("api_key", credential);
-  } else {
-    headers.Authorization = `Bearer ${credential}`;
+  if (res.error !== null) {
+    return NextResponse.json({ error: res.error }, { status: res.status });
   }
 
-  let data: TmdbSearchResponse;
-  try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/movie?${params.toString()}`,
-      { headers, cache: "no-store" },
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      console.error(`TMDB search failed: ${res.status} ${body.slice(0, 300)}`);
-      const reason =
-        res.status === 401
-          ? "TMDB не принял токен (401), проверь TMDB_API_TOKEN"
-          : `TMDB ответил ошибкой ${res.status}`;
-      return NextResponse.json({ error: reason }, { status: 502 });
-    }
-    data = (await res.json()) as TmdbSearchResponse;
-  } catch (err) {
-    console.error("TMDB search request failed", err);
-    return NextResponse.json(
-      { error: "Не удалось связаться с TMDB" },
-      { status: 502 },
-    );
-  }
-
-  const results: SearchResult[] = data.results
+  const results: SearchResult[] = res.data.results
     .slice(0, MAX_RESULTS)
     .map((movie) => {
       const year = parseInt(movie.release_date?.slice(0, 4) ?? "", 10);
