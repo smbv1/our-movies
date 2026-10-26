@@ -1,9 +1,13 @@
 export type MovieStatus = "want" | "watched";
 
+// What a list item is on TMDB: a film or a TV series.
+export type MediaType = "movie" | "tv";
+
 export type Movie = {
   id: string;
   list_id: string;
   tmdb_id: number;
+  media_type: MediaType;
   title: string;
   original_title: string | null;
   year: number | null;
@@ -27,9 +31,10 @@ export type List = {
   invite_code: string;
 };
 
-// Result shape returned by /api/search (trimmed TMDB movie).
+// Result shape returned by /api/search (trimmed TMDB movie or series).
 export type SearchResult = {
   tmdb_id: number;
+  media_type: MediaType;
   title: string;
   original_title: string | null;
   year: number | null;

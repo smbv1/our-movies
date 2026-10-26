@@ -46,7 +46,7 @@ export default function MovieSearch() {
         setSearchError(
           err instanceof Error && err.message
             ? err.message
-            : "Не удалось найти фильмы. Попробуйте ещё раз.",
+            : "Не удалось выполнить поиск. Попробуйте ещё раз.",
         );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -85,8 +85,8 @@ export default function MovieSearch() {
             setQuery(e.target.value);
             setActionError(null);
           }}
-          placeholder="Найти фильм…"
-          aria-label="Найти фильм"
+          placeholder="Найти фильм или сериал…"
+          aria-label="Найти фильм или сериал"
           autoComplete="off"
           className={`h-12 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20 ${
             loading ? "pr-12" : ""
@@ -130,7 +130,7 @@ export default function MovieSearch() {
           )}
           {visibleResults.map((movie) => (
             <li
-              key={movie.tmdb_id}
+              key={`${movie.media_type}-${movie.tmdb_id}`}
               className="flex items-center gap-3 p-3"
             >
               {movie.poster_path ? (
@@ -151,6 +151,7 @@ export default function MovieSearch() {
                   {movie.title}
                 </p>
                 <p className="text-xs text-zinc-500">
+                  {movie.media_type === "tv" ? "Сериал · " : "Фильм · "}
                   {movie.year ?? "год неизвестен"}
                 </p>
               </div>

@@ -105,21 +105,60 @@ export type TmdbMovieDetails = {
   "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
 };
 
+export type TmdbSeason = {
+  id: number;
+  season_number: number;
+  name: string;
+  episode_count: number;
+  air_date: string | null;
+};
+
+export type TmdbTvDetails = {
+  id: number;
+  name: string;
+  original_name: string;
+  tagline: string | null;
+  overview: string | null;
+  // Typical episode lengths in minutes; often empty for newer series.
+  episode_run_time: number[];
+  first_air_date: string | null;
+  last_air_date: string | null;
+  // "Returning Series", "Ended", "Canceled", "In Production", "Planned", "Pilot".
+  status: string;
+  number_of_seasons: number;
+  number_of_episodes: number;
+  vote_average: number;
+  vote_count: number;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  genres: { id: number; name: string }[];
+  seasons: TmdbSeason[];
+  videos?: { results: TmdbVideo[] };
+  "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
+};
+
 // Details, trailers and providers change rarely, so a day-old copy is fine.
 const DETAILS_CACHE_SECONDS = 24 * 60 * 60;
 
+const DETAILS_QUERY = {
+  language: "ru-RU",
+  append_to_response: "videos,watch/providers",
+  // Videos are filtered by language; also take English and language-less ones.
+  include_video_language: "ru,en,null",
+};
+
 // Movie details with videos and watch providers in one request.
 export function getMovieDetails(tmdbId: number) {
-  return tmdbGet<TmdbMovieDetails>(
-    `/movie/${tmdbId}`,
-    {
-      language: "ru-RU",
-      append_to_response: "videos,watch/providers",
-      // Videos are filtered by language; also take English and language-less ones.
-      include_video_language: "ru,en,null",
-    },
-    { revalidate: DETAILS_CACHE_SECONDS },
-  );
+  return tmdbGet<TmdbMovieDetails>(`/movie/${tmdbId}`, DETAILS_QUERY, {
+    revalidate: DETAILS_CACHE_SECONDS,
+  });
+}
+
+// Series details (seasons, episode counts) with videos and watch providers in one request.
+export function getTvDetails(tmdbId: number) {
+  return tmdbGet<TmdbTvDetails>(`/tv/${tmdbId}`, DETAILS_QUERY, {
+    revalidate: DETAILS_CACHE_SECONDS,
+  });
 }
 
 // Best YouTube trailer: Russian before English, trailers before teasers, official first.

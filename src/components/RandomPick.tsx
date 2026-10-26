@@ -68,7 +68,7 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
         type="button"
         onClick={roll}
         disabled={isEmpty}
-        title={isEmpty ? "Сначала добавьте фильмы в «Хотим»" : undefined}
+        title={isEmpty ? "Сначала добавьте что-нибудь в «Хотим»" : undefined}
         className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
         🎲 Что смотрим сегодня?
@@ -111,6 +111,7 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
                   {movie.title}
                 </h2>
                 <p className="text-xs text-zinc-500">
+                  {movie.media_type === "tv" ? "Сериал · " : ""}
                   {movie.year ?? "год неизвестен"}
                 </p>
                 <p className="text-xs text-zinc-500">

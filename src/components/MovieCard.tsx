@@ -96,6 +96,11 @@ export default function MovieCard({
             </Link>
           </h3>
           <p className="text-xs text-zinc-500">
+            {movie.media_type === "tv" && (
+              <span className="mr-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 font-medium text-sky-300">
+                Сериал
+              </span>
+            )}
             {movie.year ?? "год неизвестен"}
           </p>
         </div>
