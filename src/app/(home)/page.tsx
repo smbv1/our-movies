@@ -4,6 +4,7 @@ import { logout } from "@/app/auth/actions";
 import LogoutButton from "@/components/LogoutButton";
 import MovieCard from "@/components/MovieCard";
 import MovieSearch from "@/components/MovieSearch";
+import RandomPick from "@/components/RandomPick";
 import TabPendingIndicator from "@/components/TabPendingIndicator";
 import { createClient } from "@/lib/supabase/server";
 import type { List, Movie, Profile } from "@/lib/types";
@@ -96,6 +97,11 @@ export default async function Home({ searchParams }: PageProps) {
       </header>
 
       <MovieSearch />
+
+      <RandomPick
+        movies={wantMovies}
+        nameById={Object.fromEntries(nameById)}
+      />
 
       <nav
         aria-label="Списки фильмов"
