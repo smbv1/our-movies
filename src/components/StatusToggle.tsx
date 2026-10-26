@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { setStatus } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
 import type { MovieStatus } from "@/lib/types";
@@ -13,12 +13,16 @@ type StatusToggleProps = {
 export default function StatusToggle({ movieId, status }: StatusToggleProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const isWatched = status === "watched";
+  // The button flips at once; it flips back if saving fails.
+  const [shownStatus, setShownStatus] = useOptimistic(status);
+  const isWatched = shownStatus === "watched";
 
   function handleClick() {
+    const next = isWatched ? "want" : "watched";
     setError(null);
     startTransition(async () => {
-      const result = await setStatus(movieId, isWatched ? "want" : "watched");
+      setShownStatus(next);
+      const result = await setStatus(movieId, next);
       if (result.error) setError(result.error);
     });
   }
@@ -35,16 +39,8 @@ export default function StatusToggle({ movieId, status }: StatusToggleProps) {
             : "bg-amber-500 text-zinc-950 hover:bg-amber-400"
         }`}
       >
-        {isPending ? (
-          <>
-            <Spinner />
-            Сохраняем…
-          </>
-        ) : isWatched ? (
-          "Вернуть в «Хотим»"
-        ) : (
-          "Посмотрели ✓"
-        )}
+        {isPending && <Spinner />}
+        {isWatched ? "Вернуть в «Хотим»" : "Посмотрели ✓"}
       </button>
       {error && (
         <p role="alert" className="text-xs text-red-400">

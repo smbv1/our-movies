@@ -3,10 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { addMovie } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
-import { TMDB_IMAGE_BASE, type SearchResult } from "@/lib/types";
+import { tmdbImage, type SearchResult } from "@/lib/types";
 
 const MIN_QUERY_LENGTH = 2;
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 300;
 
 export default function MovieSearch() {
   const [query, setQuery] = useState("");
@@ -14,7 +14,7 @@ export default function MovieSearch() {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [pendingId, setPendingId] = useState<number | null>(null);
+  const [addingTitle, setAddingTitle] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const trimmed = query.trim();
@@ -62,18 +62,16 @@ export default function MovieSearch() {
   // Results are only shown for the current query, so no state reset is needed for short input.
   const visibleResults = isActive ? results : [];
 
+  // Results close at once instead of after the save; the card shows up when the list re-renders.
   function handleAdd(movie: SearchResult) {
     setActionError(null);
-    setPendingId(movie.tmdb_id);
+    setAddingTitle(movie.title);
+    setQuery("");
+    setResults([]);
     startTransition(async () => {
       const result = await addMovie(movie);
-      setPendingId(null);
-      if (result.error) {
-        setActionError(result.error);
-        return;
-      }
-      setQuery("");
-      setResults([]);
+      setAddingTitle(null);
+      if (result.error) setActionError(`«${movie.title}»: ${result.error}`);
     });
   }
 
@@ -100,6 +98,16 @@ export default function MovieSearch() {
           </div>
         )}
       </div>
+
+      {isPending && addingTitle && (
+        <p
+          role="status"
+          className="mt-3 flex items-center gap-2 text-sm text-zinc-400"
+        >
+          <Spinner />
+          Добавляем «{addingTitle}»…
+        </p>
+      )}
 
       {actionError && (
         <p role="alert" className="mt-3 text-sm text-red-400">
@@ -128,7 +136,7 @@ export default function MovieSearch() {
               {movie.poster_path ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`${TMDB_IMAGE_BASE}${movie.poster_path}`}
+                  src={tmdbImage(movie.poster_path, "w92")}
                   alt=""
                   loading="lazy"
                   className="h-16 w-11 flex-none rounded-md object-cover"
@@ -152,10 +160,7 @@ export default function MovieSearch() {
                 disabled={isPending}
                 className="inline-flex flex-none items-center gap-2 rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isPending && pendingId === movie.tmdb_id && <Spinner />}
-                {isPending && pendingId === movie.tmdb_id
-                  ? "Добавляем…"
-                  : "Добавить"}
+                Добавить
               </button>
             </li>
           ))}

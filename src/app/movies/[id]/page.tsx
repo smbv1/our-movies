@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import StatusToggle from "@/components/StatusToggle";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import {
   getMovieDetails,
   pickTrailer,
@@ -10,9 +10,8 @@ import {
   type TmdbProvider,
 } from "@/lib/tmdb";
 import {
-  TMDB_BACKDROP_BASE,
-  TMDB_IMAGE_BASE,
-  TMDB_LOGO_BASE,
+  posterSrcSet,
+  tmdbImage,
   type Movie,
 } from "@/lib/types";
 
@@ -34,34 +33,29 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
   if (!UUID_RE.test(id)) notFound();
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  // RLS only returns movies from the user's own list.
-  const { data: movie } = (await supabase
-    .from("movies")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle()) as { data: Movie | null };
-  if (!movie) notFound();
-
-  const [details, addedByRes] = await Promise.all([
-    getMovieDetails(movie.tmdb_id),
+  // RLS only returns movies from the user's own list; the adder's name comes embedded.
+  const [userId, movieRes] = await Promise.all([
+    getUserId(supabase),
     supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", movie.added_by)
+      .from("movies")
+      .select("*, added_by_profile:profiles!movies_added_by_fkey(display_name)")
+      .eq("id", id)
       .maybeSingle(),
   ]);
+  if (!userId) redirect("/login");
+  const movie = movieRes.data as
+    | (Movie & { added_by_profile: { display_name: string } | null })
+    | null;
+  if (!movie) notFound();
+
+  const details = await getMovieDetails(movie.tmdb_id);
 
   const info = details.data;
   const trailer = pickTrailer(info?.videos?.results);
   const watch = pickWatchRegion(info?.["watch/providers"]?.results);
   const posterPath = info?.poster_path ?? movie.poster_path;
   const overview = info?.overview || movie.overview;
-  const addedByName: string = addedByRes.data?.display_name ?? "неизвестно";
+  const addedByName = movie.added_by_profile?.display_name ?? "неизвестно";
 
   const facts = [
     movie.year ? String(movie.year) : null,
@@ -75,7 +69,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       {info?.backdrop_path && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`${TMDB_BACKDROP_BASE}${info.backdrop_path}`}
+          src={tmdbImage(info.backdrop_path, "w780")}
           alt=""
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 w-full object-cover opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]"
@@ -94,7 +88,10 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
           {posterPath ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`${TMDB_IMAGE_BASE}${posterPath}`}
+              src={tmdbImage(posterPath, "w342")}
+              srcSet={posterSrcSet(posterPath)}
+              sizes="(min-width: 640px) 224px, 160px"
+              fetchPriority="high"
               alt={movie.title}
               className="aspect-[2/3] w-40 shrink-0 self-center rounded-xl object-cover shadow-lg sm:w-56 sm:self-start"
             />
@@ -239,7 +236,8 @@ function ProviderRow({
             {p.logo_path ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={`${TMDB_LOGO_BASE}${p.logo_path}`}
+                src={tmdbImage(p.logo_path, "w92")}
+                loading="lazy"
                 alt=""
                 className="h-8 w-8 rounded-md"
               />

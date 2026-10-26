@@ -14,9 +14,12 @@ function getCredential(): string {
 }
 
 // GETs a TMDB v3 path (e.g. "/search/movie") and returns parsed JSON or a user-facing error.
+// With `revalidate`, successful responses are kept in the Next.js data cache for that many
+// seconds, shared across serverless instances; errors are never cached.
 export async function tmdbGet<T>(
   path: string,
   query: Record<string, string>,
+  { revalidate }: { revalidate?: number } = {},
 ): Promise<TmdbResult<T>> {
   const credential = getCredential();
   if (!credential) {
@@ -40,7 +43,9 @@ export async function tmdbGet<T>(
   try {
     const res = await fetch(
       `https://api.themoviedb.org/3${path}?${params.toString()}`,
-      { headers, cache: "no-store" },
+      revalidate
+        ? { headers, cache: "force-cache", next: { revalidate } }
+        : { headers, cache: "no-store" },
     );
     if (!res.ok) {
       const body = await res.text();
@@ -100,14 +105,21 @@ export type TmdbMovieDetails = {
   "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
 };
 
+// Details, trailers and providers change rarely, so a day-old copy is fine.
+const DETAILS_CACHE_SECONDS = 24 * 60 * 60;
+
 // Movie details with videos and watch providers in one request.
 export function getMovieDetails(tmdbId: number) {
-  return tmdbGet<TmdbMovieDetails>(`/movie/${tmdbId}`, {
-    language: "ru-RU",
-    append_to_response: "videos,watch/providers",
-    // Videos are filtered by language; also take English and language-less ones.
-    include_video_language: "ru,en,null",
-  });
+  return tmdbGet<TmdbMovieDetails>(
+    `/movie/${tmdbId}`,
+    {
+      language: "ru-RU",
+      append_to_response: "videos,watch/providers",
+      // Videos are filtered by language; also take English and language-less ones.
+      include_video_language: "ru,en,null",
+    },
+    { revalidate: DETAILS_CACHE_SECONDS },
+  );
 }
 
 // Best YouTube trailer: Russian before English, trailers before teasers, official first.

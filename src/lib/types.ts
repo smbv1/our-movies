@@ -37,6 +37,18 @@ export type SearchResult = {
   overview: string | null;
 };
 
-export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
-export const TMDB_LOGO_BASE = "https://image.tmdb.org/t/p/w92";
-export const TMDB_BACKDROP_BASE = "https://image.tmdb.org/t/p/w1280";
+export const TMDB_IMAGE_ORIGIN = "https://image.tmdb.org";
+
+// Pre-sized images TMDB serves from its CDN; pick the smallest that covers the slot.
+type TmdbImageSize = "w92" | "w185" | "w342" | "w500" | "w780";
+
+export function tmdbImage(path: string, size: TmdbImageSize): string {
+  return `${TMDB_IMAGE_ORIGIN}/t/p/${size}${path}`;
+}
+
+// srcSet for posters, so phones with dense screens and small slots each get a fitting file.
+export function posterSrcSet(path: string): string {
+  return (["w185", "w342", "w500"] as const)
+    .map((size) => `${tmdbImage(path, size)} ${size.slice(1)}w`)
+    .join(", ");
+}

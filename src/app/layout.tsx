@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { preconnect } from "react-dom";
+import { TMDB_IMAGE_ORIGIN } from "@/lib/types";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,6 +20,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  // Posters come from TMDB's CDN; open the connection before the first <img> asks for it.
+  preconnect(TMDB_IMAGE_ORIGIN);
+
   return (
     <html
       lang="ru"

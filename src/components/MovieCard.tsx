@@ -4,16 +4,25 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { deleteMovie, setStatus } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
-import { TMDB_IMAGE_BASE, type Movie } from "@/lib/types";
+import { posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
 
 type MovieCardProps = {
   movie: Movie;
   addedByName: string;
+  // Load the poster right away instead of lazily (cards in the first row).
+  eager?: boolean;
+  // Called inside the action's transition to take the card out of the list optimistically.
+  onLeave?: () => void;
 };
 
 type PendingAction = "status" | "delete";
 
-export default function MovieCard({ movie, addedByName }: MovieCardProps) {
+export default function MovieCard({
+  movie,
+  addedByName,
+  eager = false,
+  onLeave,
+}: MovieCardProps) {
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(
     null,
@@ -25,6 +34,7 @@ export default function MovieCard({ movie, addedByName }: MovieCardProps) {
     setError(null);
     setPendingAction("status");
     startTransition(async () => {
+      onLeave?.();
       try {
         const result = await setStatus(movie.id, next);
         if (result.error) setError(result.error);
@@ -39,6 +49,7 @@ export default function MovieCard({ movie, addedByName }: MovieCardProps) {
     setError(null);
     setPendingAction("delete");
     startTransition(async () => {
+      onLeave?.();
       try {
         const result = await deleteMovie(movie.id);
         if (result.error) setError(result.error);
@@ -60,9 +71,11 @@ export default function MovieCard({ movie, addedByName }: MovieCardProps) {
         {movie.poster_path ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`${TMDB_IMAGE_BASE}${movie.poster_path}`}
+            src={tmdbImage(movie.poster_path, "w342")}
+            srcSet={posterSrcSet(movie.poster_path)}
+            sizes="(min-width: 1024px) 270px, (min-width: 640px) 33vw, 50vw"
             alt={movie.title}
-            loading="lazy"
+            loading={eager ? "eager" : "lazy"}
             className="aspect-[2/3] w-full object-cover"
           />
         ) : (

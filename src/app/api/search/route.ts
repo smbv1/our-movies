@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import { tmdbGet } from "@/lib/tmdb";
 import type { SearchResult } from "@/lib/types";
 
@@ -18,13 +18,12 @@ type TmdbSearchResponse = {
 
 const MAX_RESULTS = 10;
 
+// TMDB search results barely change; the server keeps them for an hour.
+const SEARCH_CACHE_SECONDS = 60 * 60;
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!(await getUserId(supabase))) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
 
@@ -37,7 +36,7 @@ export async function GET(request: NextRequest) {
     query: q,
     language: "ru-RU",
     include_adult: "false",
-  });
+  }, { revalidate: SEARCH_CACHE_SECONDS });
   if (res.error !== null) {
     return NextResponse.json({ error: res.error }, { status: res.status });
   }
@@ -56,5 +55,8 @@ export async function GET(request: NextRequest) {
       };
     });
 
-  return NextResponse.json(results);
+  // The browser reuses results when the same query is typed again.
+  return NextResponse.json(results, {
+    headers: { "Cache-Control": "private, max-age=300" },
+  });
 }

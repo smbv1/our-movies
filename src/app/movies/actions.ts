@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUserId } from "@/lib/supabase/server";
 import type { MovieStatus, SearchResult } from "@/lib/types";
 
 type ActionResult = { error: string | null };
@@ -10,19 +10,16 @@ const UNIQUE_VIOLATION = "23505";
 
 export async function addMovie(movie: SearchResult): Promise<ActionResult> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // my_list_id() resolves the list from the session, so both run at once.
+  const [userId, listRes] = await Promise.all([
+    getUserId(supabase),
+    supabase.rpc("my_list_id"),
+  ]);
+  if (!userId) {
     return { error: "Нужно войти в аккаунт" };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("list_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  const listId: string | null = profile?.list_id ?? null;
+  const listId: string | null = listRes.data ?? null;
   if (!listId) {
     return { error: "Сначала создайте список или присоединитесь к нему" };
   }
@@ -36,7 +33,7 @@ export async function addMovie(movie: SearchResult): Promise<ActionResult> {
     poster_path: movie.poster_path,
     overview: movie.overview,
     status: "want",
-    added_by: user.id,
+    added_by: userId,
   });
 
   if (error) {
