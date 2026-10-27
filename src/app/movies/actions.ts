@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getUserId } from "@/lib/supabase/server";
 import { getTitleDetails, titleFacts } from "@/lib/tmdb";
-import { MAX_RATING, type MovieStatus, type SearchResult } from "@/lib/types";
+import {
+  DETAILS_REFRESH_DAYS,
+  MAX_RATING,
+  type MovieStatus,
+  type SearchResult,
+} from "@/lib/types";
 
 type ActionResult = { error: string | null };
 
@@ -128,16 +133,21 @@ export async function setRating(
   return { error: null };
 }
 
-// Titles added before genres were stored, per call; the rest come on the next visit.
+// Titles refreshed from TMDB per call; the rest come with the next batch or visit.
 const BACKFILL_BATCH = 20;
 
-// Fetches genres and runtime for titles in the list that don't have them yet.
+// Fetches genres, runtime, episodes and streaming services for titles that never had
+// them or whose copy is older than DETAILS_REFRESH_DAYS (services come and go).
 export async function fillMissingDetails(): Promise<ActionResult> {
   const supabase = await createClient();
+  const staleBefore = new Date(
+    Date.now() - DETAILS_REFRESH_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
   const { data: rows, error } = await supabase
     .from("movies")
     .select("id, tmdb_id, media_type")
-    .is("genres", null)
+    .or(`details_at.is.null,details_at.lt."${staleBefore}"`)
+    .order("details_at", { ascending: true, nullsFirst: true })
     .limit(BACKFILL_BATCH);
   if (error) return { error: "Не удалось загрузить список" };
   if (!rows.length) return { error: null };
@@ -156,6 +166,21 @@ export async function fillMissingDetails(): Promise<ActionResult> {
   );
 
   if (updated.some(Boolean)) revalidatePath("/");
+  return { error: null };
+}
+
+// Saves which streaming services the couple has (TMDB provider ids).
+export async function setServices(ids: number[]): Promise<ActionResult> {
+  const clean = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_services", { ids: clean });
+
+  if (error) {
+    return { error: "Не удалось сохранить сервисы" };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
   return { error: null };
 }
 

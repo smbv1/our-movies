@@ -11,6 +11,7 @@ import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import MovieCard from "@/components/MovieCard";
+import ServicesButton from "@/components/ServicesButton";
 import { useToast } from "@/components/Toaster";
 import {
   averageRating,
@@ -21,6 +22,7 @@ import {
   type MediaType,
   type Movie,
   type MovieStatus,
+  type StoredProvider,
 } from "@/lib/types";
 
 type MovieListProps = {
@@ -30,6 +32,10 @@ type MovieListProps = {
   // The signed-in member, whose «хочу» mark the heart button toggles.
   meId: string;
   tab: MovieStatus;
+  // Provider ids of the couple's streaming services.
+  services: number[];
+  // Every service some title in the list streams on, for the services picker.
+  allProviders: StoredProvider[];
 };
 
 type TypeFilter = "all" | MediaType;
@@ -47,6 +53,9 @@ const SORT_LABELS: Record<SortKey, string> = {
 };
 
 type LengthFilter = "all" | LengthKey;
+
+// "ours": on one of the couple's services; "any": streams somewhere; a provider id as text.
+type WatchFilter = "all" | "ours" | "any" | string;
 
 // "match" / "apart": both rated and agreed or split; "unrated": I haven't rated it yet.
 type RatingFilter = "all" | "match" | "apart" | "unrated";
@@ -100,7 +109,14 @@ function focusSearch() {
   input?.focus();
 }
 
-export default function MovieList({ movies, members, meId, tab }: MovieListProps) {
+export default function MovieList({
+  movies,
+  members,
+  meId,
+  tab,
+  services,
+  allProviders,
+}: MovieListProps) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -110,6 +126,9 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
   const [lengthFilter, setLengthFilter] = useState<LengthFilter>("all");
   const [decadeFilter, setDecadeFilter] = useState<string>("all");
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
+  const [watchFilter, setWatchFilter] = useState<WatchFilter>("all");
+  // Where to watch matters for what's still ahead.
+  const showProviders = tab === "want";
   // Scores show on watched titles only.
   const showRatings = tab === "watched";
   // «Кто хочет» only matters for titles still to watch, and only in a pair.
@@ -179,12 +198,46 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
     ),
   ].sort((a, b) => b - a);
   const hasRuntimes = present.some((m) => m.runtime);
+  // Services that titles in this tab are on, most titles first.
+  const providerById = new Map(
+    present.flatMap((m) => m.providers ?? []).map((p) => [p.id, p]),
+  );
+  const providerOptions = countBy(
+    present.flatMap((m) => (m.providers ?? []).map((p) => String(p.id))),
+  );
+  const watchOptions: [string, string][] =
+    showProviders && providerOptions.length > 0
+      ? [
+          ["all", "Где угодно"],
+          ...(services.length > 0
+            ? [["ours", "На наших сервисах"] as [string, string]]
+            : []),
+          ["any", "Есть онлайн"],
+          ...providerOptions.map((id): [string, string] => [
+            id,
+            providerById.get(Number(id))!.name,
+          ]),
+        ]
+      : [];
+  const watch = watchOptions.some(([value]) => value === watchFilter)
+    ? watchFilter
+    : "all";
+  const matchesWatch = (m: Movie) => {
+    const ids = (m.providers ?? []).map((p) => p.id);
+    if (watch === "ours") return ids.some((id) => services.includes(id));
+    if (watch === "any") return ids.length > 0;
+    return ids.includes(Number(watch));
+  };
   // A choice that this tab has nothing for (say, after switching tabs) is kept but not applied.
   const genre = genreOptions.includes(genreFilter) ? genreFilter : "all";
   const decade = decadeOptions.includes(Number(decadeFilter)) ? decadeFilter : "all";
   const length = hasRuntimes ? lengthFilter : "all";
   const showExtraFilters =
-    genreOptions.length > 0 || hasRuntimes || decadeOptions.length > 1 || showRatings;
+    genreOptions.length > 0 ||
+    hasRuntimes ||
+    decadeOptions.length > 1 ||
+    showRatings ||
+    showProviders;
   // Each tab shows only its own person filter; the other one's choice is kept but not applied.
   const adderActive = !showWants && adderFilter !== "all";
   const wantActive = showWants && wantFilter !== "all";
@@ -211,7 +264,8 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
           (m.runtime !== null && LENGTHS[length].test(m.runtime))) &&
         (decade === "all" ||
           (m.year !== null && decadeOf(m.year) === Number(decade))) &&
-        (!ratingActive || matchesRating(m)),
+        (!ratingActive || matchesRating(m)) &&
+        (watch === "all" || matchesWatch(m)),
     ),
     sort,
   );
@@ -222,7 +276,8 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
     genre !== "all" ||
     length !== "all" ||
     decade !== "all" ||
-    ratingActive;
+    ratingActive ||
+    watch !== "all";
 
   function resetFilters() {
     setTypeFilter("all");
@@ -232,6 +287,7 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
     setLengthFilter("all");
     setDecadeFilter("all");
     setRatingFilter("all");
+    setWatchFilter("all");
   }
 
   function rate(movie: Movie, score: number | null) {
@@ -434,7 +490,7 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
         </label>
       </div>
 
-      {/* Genre, length, decade and (on «Посмотрели») ratings. Highlighted while in use. */}
+      {/* Genre, length, decade, then ratings (on «Посмотрели») or where to watch (on «Хотим»). Highlighted while in use. */}
       {showExtraFilters && (
         // One swipeable row on phones, so four selects don't push the list down.
         <div className="-mx-4 -mt-1 flex items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -495,6 +551,22 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
               ]}
             />
           )}
+          {watchOptions.length > 0 && (
+            <FilterSelect
+              label="Где смотреть"
+              value={watch}
+              onChange={setWatchFilter}
+              highlight
+              options={watchOptions}
+            />
+          )}
+          {showProviders && (
+            <ServicesButton
+              providers={allProviders}
+              services={services}
+              className={chipClass(false)}
+            />
+          )}
           {isFiltered && (
             <button
               type="button"
@@ -544,6 +616,7 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
               raters={showRatings ? raters : undefined}
               meId={meId}
               onRate={(score) => rate(movie, score)}
+              services={showProviders ? services : undefined}
               onToggleStatus={() =>
                 changeStatus(
                   movie,
