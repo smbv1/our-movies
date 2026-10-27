@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { logout } from "@/app/auth/actions";
+import { joinPartnerList, type JoinPartnerState } from "@/app/onboarding/actions";
 import LogoutButton from "@/components/LogoutButton";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
+import Spinner from "@/components/Spinner";
 import { useToast } from "@/components/Toaster";
 
 type PairButtonProps = {
@@ -11,10 +13,22 @@ type PairButtonProps = {
   inviteCode: string;
 };
 
-// The couple's avatars in the header; opens the invite code and the logout button.
+// The couple's avatars in the header; opens the invite code, joining the partner's
+// list by their code (for whoever skipped it at sign-up) and the logout button.
 export default function PairButton({ members, inviteCode }: PairButtonProps) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
+  const [joinState, joinAction, joining] = useActionState(
+    async (prev: JoinPartnerState, formData: FormData) => {
+      const next = await joinPartnerList(prev, formData);
+      if (next.joined) {
+        setOpen(false);
+        toast.show({ message: "Готово, теперь у вас общий список" });
+      }
+      return next;
+    },
+    {},
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -104,7 +118,7 @@ export default function PairButton({ members, inviteCode }: PairButtonProps) {
             <div className="flex flex-col gap-2 rounded-xl bg-zinc-950/60 p-4 ring-1 ring-zinc-800">
               <p className="text-xs text-zinc-400">
                 {alone
-                  ? "Отправьте этот код второй половинке. После регистрации пусть выберет «Войти в список по коду» и введёт его."
+                  ? "Отправьте этот код второй половинке. Пусть введёт его в «Наша пара» у себя или при регистрации."
                   : "Код приглашения в ваш список"}
               </p>
               <div className="flex items-center gap-2">
@@ -120,6 +134,41 @@ export default function PairButton({ members, inviteCode }: PairButtonProps) {
                 </button>
               </div>
             </div>
+
+            {alone && (
+              <form action={joinAction} className="flex flex-col gap-2">
+                <label htmlFor="partner-code" className="text-xs text-zinc-400">
+                  Уже есть код от второй половинки? Введите его, чтобы войти в
+                  общий список. Ваши фильмы перенесутся туда.
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="partner-code"
+                    name="code"
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={12}
+                    placeholder="Код"
+                    className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono uppercase tracking-widest text-zinc-100 placeholder:normal-case placeholder:tracking-normal placeholder:text-zinc-600 focus:border-amber-400 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={joining}
+                    className="inline-flex items-center gap-2 rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-stone-950 transition hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {joining && <Spinner />}
+                    {joining ? "Входим..." : "Войти"}
+                  </button>
+                </div>
+                {joinState.error && (
+                  <p role="alert" className="text-sm text-red-400">
+                    {joinState.error}
+                  </p>
+                )}
+              </form>
+            )}
 
             <form action={logout} className="flex justify-end">
               <LogoutButton />
