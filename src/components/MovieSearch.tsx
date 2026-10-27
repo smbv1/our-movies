@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addMovie } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
@@ -17,9 +18,11 @@ const DEBOUNCE_MS = 300;
 type MovieSearchProps = {
   // What is already in the list, keyed by `${media_type}-${tmdb_id}`.
   existing: Record<string, MovieStatus>;
+  // New titles go into the tab that is open, so adding from «Посмотрели» marks them watched.
+  addAs: MovieStatus;
 };
 
-export default function MovieSearch({ existing }: MovieSearchProps) {
+export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   // The query the current results belong to, to tell "nothing found" from "not searched yet".
@@ -98,11 +101,12 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
     setResults([]);
     setOpen(false);
     startTransition(async () => {
-      const result = await addMovie(movie);
+      const result = await addMovie(movie, addAs);
       if (result.error) {
         toast.show({ message: `«${movie.title}»: ${result.error}`, tone: "error" });
       } else {
-        toast.show({ message: `«${movie.title}» добавлен в «Хотим»` });
+        const tabName = addAs === "watched" ? "Посмотрели" : "Хотим";
+        toast.show({ message: `«${movie.title}» добавлен в «${tabName}»` });
       }
     });
   }
@@ -137,7 +141,11 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
               setOpen(false);
             }
           }}
-          placeholder="Найти фильм или сериал…"
+          placeholder={
+            addAs === "watched"
+              ? "Добавить в «Посмотрели»…"
+              : "Найти фильм или сериал…"
+          }
           aria-label="Найти фильм или сериал"
           autoComplete="off"
           className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900/90 pl-10 pr-11 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20"
@@ -174,28 +182,36 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
             const status = existing[searchKey(movie)];
             return (
               <li key={searchKey(movie)} className="flex items-center gap-3 p-3">
-                {movie.poster_path ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={tmdbImage(movie.poster_path, "w92")}
-                    alt=""
-                    loading="lazy"
-                    className="h-16 w-11 flex-none rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="flex h-16 w-11 flex-none items-center justify-center rounded-md bg-zinc-800 text-[10px] text-zinc-500">
-                    нет фото
+                {/* Opens the title's page to read more first; titles already in the list land on their own page. */}
+                <Link
+                  href={`/title/${movie.media_type}/${movie.tmdb_id}?tab=${addAs}`}
+                  onClick={() => setOpen(false)}
+                  className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 transition hover:bg-zinc-800/60"
+                >
+                  {movie.poster_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={tmdbImage(movie.poster_path, "w92")}
+                      alt=""
+                      loading="lazy"
+                      className="h-16 w-11 flex-none rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-11 flex-none items-center justify-center rounded-md bg-zinc-800 text-[10px] text-zinc-500">
+                      нет фото
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-zinc-100">
+                      {movie.title}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {movie.media_type === "tv" ? "Сериал · " : "Фильм · "}
+                      {movie.year ?? "год неизвестен"}
+                      <span className="text-zinc-600"> · подробнее ›</span>
+                    </p>
                   </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-100">
-                    {movie.title}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    {movie.media_type === "tv" ? "Сериал · " : "Фильм · "}
-                    {movie.year ?? "год неизвестен"}
-                  </p>
-                </div>
+                </Link>
                 {status ? (
                   <span className="flex-none rounded-lg px-3 py-2 text-xs font-medium text-emerald-400 ring-1 ring-emerald-400/30">
                     {status === "watched" ? "Уже смотрели" : "Уже в «Хотим»"}
@@ -205,9 +221,10 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
                     type="button"
                     onClick={() => handleAdd(movie)}
                     disabled={isPending}
+                    aria-label={`Добавить «${movie.title}» в «${addAs === "watched" ? "Посмотрели" : "Хотим"}»`}
                     className="inline-flex flex-none items-center gap-2 rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    + Добавить
+                    {addAs === "watched" ? "✓ Смотрели" : "+ Хотим"}
                   </button>
                 )}
               </li>
