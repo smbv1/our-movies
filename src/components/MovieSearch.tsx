@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addMovie } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
@@ -181,28 +182,36 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
             const status = existing[searchKey(movie)];
             return (
               <li key={searchKey(movie)} className="flex items-center gap-3 p-3">
-                {movie.poster_path ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={tmdbImage(movie.poster_path, "w92")}
-                    alt=""
-                    loading="lazy"
-                    className="h-16 w-11 flex-none rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="flex h-16 w-11 flex-none items-center justify-center rounded-md bg-zinc-800 text-[10px] text-zinc-500">
-                    нет фото
+                {/* Opens the title's page to read more first; titles already in the list land on their own page. */}
+                <Link
+                  href={`/title/${movie.media_type}/${movie.tmdb_id}?tab=${addAs}`}
+                  onClick={() => setOpen(false)}
+                  className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 transition hover:bg-zinc-800/60"
+                >
+                  {movie.poster_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={tmdbImage(movie.poster_path, "w92")}
+                      alt=""
+                      loading="lazy"
+                      className="h-16 w-11 flex-none rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-11 flex-none items-center justify-center rounded-md bg-zinc-800 text-[10px] text-zinc-500">
+                      нет фото
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-zinc-100">
+                      {movie.title}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {movie.media_type === "tv" ? "Сериал · " : "Фильм · "}
+                      {movie.year ?? "год неизвестен"}
+                      <span className="text-zinc-600"> · подробнее ›</span>
+                    </p>
                   </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-100">
-                    {movie.title}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    {movie.media_type === "tv" ? "Сериал · " : "Фильм · "}
-                    {movie.year ?? "год неизвестен"}
-                  </p>
-                </div>
+                </Link>
                 {status ? (
                   <span className="flex-none rounded-lg px-3 py-2 text-xs font-medium text-emerald-400 ring-1 ring-emerald-400/30">
                     {status === "watched" ? "Уже смотрели" : "Уже в «Хотим»"}
