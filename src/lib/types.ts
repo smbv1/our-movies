@@ -32,7 +32,20 @@ export type Movie = {
   providers_region: string | null;
   // When the facts above were last taken from TMDB.
   details_at: string | null;
+  // The last episode the couple watched in a series; both null before they start.
+  // Undefined on rows read before migration 0010 has run.
+  progress_season?: number | null;
+  progress_episode?: number | null;
+  progress_at?: string | null;
 };
+
+// A spot in a series: season and episode, both from 1.
+export type EpisodeSpot = { season: number; episode: number };
+
+// "S2 · E5", short enough for a poster badge.
+export function formatSpot({ season, episode }: EpisodeSpot): string {
+  return `S${season} · E${episode}`;
+}
 
 // Stored streaming services are refreshed from TMDB after this many days.
 export const DETAILS_REFRESH_DAYS = 14;

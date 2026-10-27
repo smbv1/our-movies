@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
+import EpisodeProgress from "@/components/EpisodeProgress";
 import MovieRatings from "@/components/MovieRatings";
 import StatusToggle from "@/components/StatusToggle";
 import TitleDetails from "@/components/TitleDetails";
 import { createClient, getUserId } from "@/lib/supabase/server";
-import { getMovieDetails, getTvDetails } from "@/lib/tmdb";
+import { getMovieDetails, getTvDetails, mainSeasons } from "@/lib/tmdb";
 import type { Movie } from "@/lib/types";
 
 // Reads the session on every request, so it renders on the server per request.
@@ -43,6 +44,19 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       : await getMovieDetails(movie.tmdb_id);
   // No services before migration 0008 has run.
   const services: number[] = listRes.data?.services ?? [];
+  const seasons =
+    details.data && "seasons" in details.data
+      ? mainSeasons(details.data).map((s) => ({
+          number: s.season_number,
+          episodes: s.episode_count,
+        }))
+      : [];
+  // Undefined before migration 0010 has run; then the series has no progress box.
+  const hasProgress = movie.progress_season !== undefined;
+  const spot =
+    movie.progress_season && movie.progress_episode
+      ? { season: movie.progress_season, episode: movie.progress_episode }
+      : null;
   const addedByName = movie.added_by_profile?.display_name ?? "неизвестно";
   // Me first, matching the cards in the list.
   const raters = (membersRes.data ?? [])
@@ -56,6 +70,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       detailsError={details.error}
       backHref={`/?tab=${movie.status}`}
       services={services}
+      progress={spot}
     >
       <p className="text-xs text-zinc-500">
         добавил(а): {addedByName} ·{" "}
@@ -65,6 +80,10 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       <div className="w-fit">
         <StatusToggle movieId={movie.id} status={movie.status} />
       </div>
+
+      {movie.media_type === "tv" && hasProgress && (
+        <EpisodeProgress movieId={movie.id} seasons={seasons} spot={spot} />
+      )}
 
       {movie.status === "watched" && movie.ratings && (
         <MovieRatings
