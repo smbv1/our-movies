@@ -18,7 +18,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
 
   const supabase = await createClient();
   // RLS only returns movies from the user's own list; the adder's name comes embedded.
-  const [userId, movieRes, membersRes] = await Promise.all([
+  const [userId, movieRes, membersRes, listRes] = await Promise.all([
     getUserId(supabase),
     supabase
       .from("movies")
@@ -29,6 +29,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       .from("profiles")
       .select("id, display_name")
       .order("created_at", { ascending: true }),
+    supabase.from("lists").select("*").maybeSingle(),
   ]);
   if (!userId) redirect("/login");
   const movie = movieRes.data as
@@ -40,6 +41,8 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
     movie.media_type === "tv"
       ? await getTvDetails(movie.tmdb_id)
       : await getMovieDetails(movie.tmdb_id);
+  // No services before migration 0008 has run.
+  const services: number[] = listRes.data?.services ?? [];
   const addedByName = movie.added_by_profile?.display_name ?? "неизвестно";
   // Me first, matching the cards in the list.
   const raters = (membersRes.data ?? [])
@@ -52,6 +55,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       info={details.data}
       detailsError={details.error}
       backHref={`/?tab=${movie.status}`}
+      services={services}
     >
       <p className="text-xs text-zinc-500">
         добавил(а): {addedByName} ·{" "}

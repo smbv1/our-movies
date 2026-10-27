@@ -36,7 +36,7 @@ export default async function TitlePreviewPage({
 
   const supabase = await createClient();
   // RLS only returns rows from the user's own list.
-  const [userId, existingRes, details] = await Promise.all([
+  const [userId, existingRes, details, listRes] = await Promise.all([
     getUserId(supabase),
     supabase
       .from("movies")
@@ -45,6 +45,7 @@ export default async function TitlePreviewPage({
       .eq("media_type", type)
       .maybeSingle(),
     type === "tv" ? getTvDetails(tmdbId) : getMovieDetails(tmdbId),
+    supabase.from("lists").select("*").maybeSingle(),
   ]);
   if (!userId) redirect("/login");
   // Already in the list: show the regular page with its status toggle.
@@ -88,12 +89,16 @@ export default async function TitlePreviewPage({
           overview: info.overview || null,
         };
 
+  // No services before migration 0008 has run.
+  const services: number[] = listRes.data?.services ?? [];
+
   return (
     <TitleDetails
       base={movie}
       info={info}
       detailsError={null}
       backHref={`/?tab=${tab}`}
+      services={services}
     >
       <p className="text-xs text-zinc-500">Ещё не в нашем списке</p>
       <AddTitleButtons movie={movie} preferred={tab} />

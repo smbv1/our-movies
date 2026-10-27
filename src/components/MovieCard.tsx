@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import { CardRating, type RatedMember } from "@/components/Ratings";
+import { ProviderLogo } from "@/components/ServicesButton";
 import { formatRuntime, posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
 
 type MovieCardProps = {
@@ -22,6 +23,9 @@ type MovieCardProps = {
   raters?: RatedMember[];
   meId?: string;
   onRate?: (score: number | null) => void;
+  // Streaming services under the title, with the couple's own ones (ids) lit up.
+  // Left out where they aren't shown.
+  services?: number[];
   onToggleStatus: () => void;
   onDelete: () => void;
 };
@@ -43,6 +47,7 @@ export default function MovieCard({
   raters,
   meId = "",
   onRate,
+  services,
   onToggleStatus,
   onDelete,
 }: MovieCardProps) {
@@ -165,6 +170,13 @@ export default function MovieCard({
             )}
           </span>
         </p>
+        {services && movie.providers && movie.providers.length > 0 && (
+          <CardProviders
+            providers={movie.providers}
+            region={movie.providers_region}
+            services={services}
+          />
+        )}
         {raters && onRate && (
           <CardRating
             title={movie.title}
@@ -176,6 +188,49 @@ export default function MovieCard({
         )}
       </div>
     </article>
+  );
+}
+
+// Logos to show on a card before "+N".
+const CARD_PROVIDERS = 4;
+
+// Small logos of where the title streams; the couple's services come first, ringed.
+function CardProviders({
+  providers,
+  region,
+  services,
+}: {
+  providers: NonNullable<Movie["providers"]>;
+  region: string | null;
+  services: number[];
+}) {
+  const ours = (id: number) => services.includes(id);
+  const sorted = [...providers].sort((a, b) => Number(ours(b.id)) - Number(ours(a.id)));
+  const shown = sorted.slice(0, CARD_PROVIDERS);
+  const more = sorted.length - shown.length;
+  const where = region && region !== "KG" ? ` (данные для ${region})` : "";
+  const label = `Где смотреть${where}: ${sorted.map((p) => p.name).join(", ")}`;
+  return (
+    <p className="mt-1.5 flex items-center gap-1" title={label}>
+      <span className="sr-only">{label}</span>
+      {shown.map((p) => (
+        <ProviderLogo
+          key={p.id}
+          provider={p}
+          className={ours(p.id) ? "ring-2 ring-amber-400" : "opacity-80"}
+        />
+      ))}
+      {more > 0 && (
+        <span aria-hidden className="text-[10px] text-zinc-500">
+          +{more}
+        </span>
+      )}
+      {region && region !== "KG" && (
+        <span aria-hidden className="text-[10px] uppercase text-zinc-600">
+          {region}
+        </span>
+      )}
+    </p>
   );
 }
 

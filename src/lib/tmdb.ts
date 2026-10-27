@@ -1,5 +1,7 @@
 // Server-only helpers for calling the TMDB API with TMDB_API_TOKEN.
 
+import type { StoredProvider } from "@/lib/types";
+
 // On failure, `status` is the HTTP status our own API should answer with.
 export type TmdbResult<T> =
   | { data: T; error: null }
@@ -203,17 +205,48 @@ export function pickWatchRegion(
   return null;
 }
 
-// What the list keeps from the details for filtering: genre names and minutes
-// (a typical episode for a series).
-export function titleFacts(info: TmdbMovieDetails | TmdbTvDetails): {
-  genres: string[];
-  runtime: number | null;
-} {
+// Subscription and free services in the region pickWatchRegion settles on, the way
+// the list stores them; rent and buy are left to the title's page.
+export function streamingProviders(
+  results: Record<string, TmdbRegionProviders> | undefined,
+): { region: string | null; providers: StoredProvider[] } {
+  const watch = pickWatchRegion(results);
+  if (!watch) return { region: null, providers: [] };
+  const byId = new Map<number, StoredProvider>();
+  const add = (list: TmdbProvider[] | undefined, kind: StoredProvider["kind"]) => {
+    for (const p of [...(list ?? [])].sort(
+      (a, b) => a.display_priority - b.display_priority,
+    )) {
+      if (!byId.has(p.provider_id)) {
+        byId.set(p.provider_id, {
+          id: p.provider_id,
+          name: p.provider_name,
+          logo: p.logo_path,
+          kind,
+        });
+      }
+    }
+  };
+  add(watch.providers.flatrate, "sub");
+  add(watch.providers.free, "free");
+  add(watch.providers.ads, "free");
+  return { region: watch.region, providers: [...byId.values()] };
+}
+
+// What the list keeps from the details: genre names and minutes (a typical episode
+// for a series) for filters, the episode count for stats, and where to stream it.
+export function titleFacts(info: TmdbMovieDetails | TmdbTvDetails) {
   const runtime =
     "runtime" in info ? info.runtime : (info.episode_run_time[0] ?? null);
+  const episodes = "number_of_episodes" in info ? info.number_of_episodes : null;
+  const watch = streamingProviders(info["watch/providers"]?.results);
   return {
     genres: info.genres.map((g) => g.name),
     runtime: runtime && runtime > 0 ? runtime : null,
+    episodes: episodes && episodes > 0 ? episodes : null,
+    providers: watch.providers,
+    providers_region: watch.region,
+    details_at: new Date().toISOString(),
   };
 }
 

@@ -25,6 +25,32 @@ export type Movie = {
   genres: string[] | null;
   // Length in minutes (one episode for a series), when TMDB knows it.
   runtime: number | null;
+  // Episodes in a series, for the total watch time in stats.
+  episodes: number | null;
+  // Where it streams (subscription or free), in providers_region; null until fetched.
+  providers: StoredProvider[] | null;
+  providers_region: string | null;
+  // When the facts above were last taken from TMDB.
+  details_at: string | null;
+};
+
+// Stored streaming services are refreshed from TMDB after this many days.
+export const DETAILS_REFRESH_DAYS = 14;
+
+// Whether a title's TMDB facts should be fetched again. Rows read before migration
+// 0008 has run have no details_at at all (undefined) and only count when genres are missing.
+export function needsDetails(m: Pick<Movie, "genres" | "details_at">): boolean {
+  if (m.details_at === undefined) return m.genres === null;
+  if (m.details_at === null) return true;
+  return Date.now() - new Date(m.details_at).getTime() > DETAILS_REFRESH_DAYS * 864e5;
+}
+
+// A streaming service as the list stores it, from TMDB/JustWatch.
+export type StoredProvider = {
+  id: number;
+  name: string;
+  logo: string | null;
+  kind: "sub" | "free";
 };
 
 // "1 ч 45 мин", "50 мин", "2 ч".
@@ -33,6 +59,19 @@ export function formatRuntime(minutes: number): string {
   const m = minutes % 60;
   if (h === 0) return `${m} мин`;
   return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+// Russian noun form for a count: plural(3, ["сезон", "сезона", "сезонов"]) → "3 сезона".
+export function plural(n: number, [one, few, many]: [string, string, string]): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  const word =
+    mod10 === 1 && mod100 !== 11
+      ? one
+      : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+        ? few
+        : many;
+  return `${n} ${word}`;
 }
 
 // Length buckets in minutes; a series is judged by one episode.
@@ -76,6 +115,8 @@ export type List = {
   id: string;
   name: string;
   invite_code: string;
+  // TMDB provider ids of the services the couple has.
+  services: number[];
 };
 
 // Result shape returned by /api/search (trimmed TMDB movie or series).

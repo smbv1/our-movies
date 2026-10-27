@@ -11,23 +11,11 @@ import {
 } from "@/lib/tmdb";
 import {
   formatRuntime,
+  plural,
   posterSrcSet,
   tmdbImage,
   type SearchResult,
 } from "@/lib/types";
-
-// Russian noun form for a count: plural(3, ["сезон", "сезона", "сезонов"]) → "3 сезона".
-function plural(n: number, [one, few, many]: [string, string, string]): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  const word =
-    mod10 === 1 && mod100 !== 11
-      ? one
-      : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-        ? few
-        : many;
-  return `${n} ${word}`;
-}
 
 const TV_STATUS_NAMES: Record<string, string> = {
   "Returning Series": "продолжается",
@@ -48,6 +36,8 @@ type TitleDetailsProps = {
   info: TmdbMovieDetails | TmdbTvDetails | null;
   detailsError: string | null;
   backHref: string;
+  // Provider ids of the couple's streaming services, marked in «Где посмотреть».
+  services?: number[];
   // Status line and buttons shown under the overview.
   children: ReactNode;
 };
@@ -58,6 +48,7 @@ export default function TitleDetails({
   info,
   detailsError,
   backHref,
+  services = [],
   children,
 }: TitleDetailsProps) {
   const isTv = base.media_type === "tv";
@@ -222,17 +213,27 @@ export default function TitleDetails({
                 )}
                 <ProviderRow
                   label="По подписке"
+                  services={services}
                   providers={watch.providers.flatrate}
                 />
                 <ProviderRow
                   label="Бесплатно"
+                  services={services}
                   providers={[
                     ...(watch.providers.free ?? []),
                     ...(watch.providers.ads ?? []),
                   ]}
                 />
-                <ProviderRow label="Аренда" providers={watch.providers.rent} />
-                <ProviderRow label="Покупка" providers={watch.providers.buy} />
+                <ProviderRow
+                  label="Аренда"
+                  providers={watch.providers.rent}
+                  services={services}
+                />
+                <ProviderRow
+                  label="Покупка"
+                  providers={watch.providers.buy}
+                  services={services}
+                />
                 <a
                   href={watch.providers.link}
                   target="_blank"
@@ -274,9 +275,11 @@ function SeasonRow({ season }: { season: TmdbSeason }) {
 function ProviderRow({
   label,
   providers,
+  services,
 }: {
   label: string;
   providers: TmdbProvider[] | undefined;
+  services: number[];
 }) {
   // The same service can appear under both "free" and "ads".
   const unique = [
@@ -288,25 +291,35 @@ function ProviderRow({
     <div className="flex flex-col gap-2">
       <p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p>
       <ul className="flex flex-wrap gap-2">
-        {unique.map((p) => (
-          <li
-            key={p.provider_id}
-            className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 py-1 pl-1 pr-3"
-          >
-            {p.logo_path ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={tmdbImage(p.logo_path, "w92")}
-                loading="lazy"
-                alt=""
-                className="h-8 w-8 rounded-md"
-              />
-            ) : (
-              <span className="h-8 w-8 rounded-md bg-zinc-800" />
-            )}
-            <span className="text-sm text-zinc-200">{p.provider_name}</span>
-          </li>
-        ))}
+        {unique.map((p) => {
+          const ours = services.includes(p.provider_id);
+          return (
+            <li
+              key={p.provider_id}
+              className={`flex items-center gap-2 rounded-lg border py-1 pl-1 pr-3 ${
+                ours
+                  ? "border-amber-400/60 bg-amber-400/10"
+                  : "border-zinc-800 bg-zinc-900"
+              }`}
+            >
+              {p.logo_path ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tmdbImage(p.logo_path, "w92")}
+                  loading="lazy"
+                  alt=""
+                  className="h-8 w-8 rounded-md"
+                />
+              ) : (
+                <span className="h-8 w-8 rounded-md bg-zinc-800" />
+              )}
+              <span className="text-sm text-zinc-200">{p.provider_name}</span>
+              {ours && (
+                <span className="text-xs text-amber-400">у нас есть</span>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
