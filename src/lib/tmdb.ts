@@ -202,3 +202,22 @@ export function pickWatchRegion(
   }
   return null;
 }
+
+// What the list keeps from the details for filtering: genre names and minutes
+// (a typical episode for a series).
+export function titleFacts(info: TmdbMovieDetails | TmdbTvDetails): {
+  genres: string[];
+  runtime: number | null;
+} {
+  const runtime =
+    "runtime" in info ? info.runtime : (info.episode_run_time[0] ?? null);
+  return {
+    genres: info.genres.map((g) => g.name),
+    runtime: runtime && runtime > 0 ? runtime : null,
+  };
+}
+
+// Details of a film or a series, whichever it is.
+export function getTitleDetails(mediaType: "movie" | "tv", tmdbId: number) {
+  return mediaType === "tv" ? getTvDetails(tmdbId) : getMovieDetails(tmdbId);
+}

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getUserId } from "@/lib/supabase/server";
-import type { MovieStatus, SearchResult } from "@/lib/types";
+import { getTitleDetails, titleFacts } from "@/lib/tmdb";
+import { MAX_RATING, type MovieStatus, type SearchResult } from "@/lib/types";
 
 type ActionResult = { error: string | null };
 
@@ -13,10 +14,12 @@ export async function addMovie(
   status: MovieStatus = "want",
 ): Promise<ActionResult & { id?: string }> {
   const supabase = await createClient();
-  // my_list_id() resolves the list from the session, so both run at once.
-  const [userId, listRes] = await Promise.all([
+  // my_list_id() resolves the list from the session, so all three run at once.
+  // Genres and runtime come from the details, which the title's page reuses from cache.
+  const [userId, listRes, details] = await Promise.all([
     getUserId(supabase),
     supabase.rpc("my_list_id"),
+    getTitleDetails(movie.media_type, movie.tmdb_id),
   ]);
   if (!userId) {
     return { error: "Нужно войти в аккаунт" };
@@ -43,6 +46,8 @@ export async function addMovie(
       // Adding a title to «Хотим» means the adder wants it.
       wanted_by: status === "want" ? [userId] : [],
       added_by: userId,
+      // If TMDB is down, these stay empty and fillMissingDetails catches up later.
+      ...(details.data ? titleFacts(details.data) : {}),
     })
     .select("id")
     .single();
@@ -100,6 +105,57 @@ export async function setWant(id: string, wants: boolean): Promise<ActionResult>
   }
 
   revalidatePath("/");
+  return { error: null };
+}
+
+// Sets the signed-in member's score (1–10), or clears it with null.
+export async function setRating(
+  id: string,
+  score: number | null,
+): Promise<ActionResult> {
+  if (score !== null && (!Number.isInteger(score) || score < 1 || score > MAX_RATING)) {
+    return { error: "Оценка должна быть от 1 до 10" };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_rating", { movie_id: id, score });
+
+  if (error) {
+    return { error: "Не удалось сохранить оценку" };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/movies/${id}`);
+  return { error: null };
+}
+
+// Titles added before genres were stored, per call; the rest come on the next visit.
+const BACKFILL_BATCH = 20;
+
+// Fetches genres and runtime for titles in the list that don't have them yet.
+export async function fillMissingDetails(): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase
+    .from("movies")
+    .select("id, tmdb_id, media_type")
+    .is("genres", null)
+    .limit(BACKFILL_BATCH);
+  if (error) return { error: "Не удалось загрузить список" };
+  if (!rows.length) return { error: null };
+
+  const updated = await Promise.all(
+    rows.map(async (row) => {
+      const details = await getTitleDetails(row.media_type, row.tmdb_id);
+      // Left for a later try; an empty genre list still counts as fetched.
+      if (!details.data) return false;
+      const { error } = await supabase
+        .from("movies")
+        .update(titleFacts(details.data))
+        .eq("id", row.id);
+      return !error;
+    }),
+  );
+
+  if (updated.some(Boolean)) revalidatePath("/");
   return { error: null };
 }
 

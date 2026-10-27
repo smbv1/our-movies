@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import MovieRatings from "@/components/MovieRatings";
 import StatusToggle from "@/components/StatusToggle";
 import TitleDetails from "@/components/TitleDetails";
 import { createClient, getUserId } from "@/lib/supabase/server";
@@ -17,13 +18,17 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
 
   const supabase = await createClient();
   // RLS only returns movies from the user's own list; the adder's name comes embedded.
-  const [userId, movieRes] = await Promise.all([
+  const [userId, movieRes, membersRes] = await Promise.all([
     getUserId(supabase),
     supabase
       .from("movies")
       .select("*, added_by_profile:profiles!movies_added_by_fkey(display_name)")
       .eq("id", id)
       .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("id, display_name")
+      .order("created_at", { ascending: true }),
   ]);
   if (!userId) redirect("/login");
   const movie = movieRes.data as
@@ -36,6 +41,10 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       ? await getTvDetails(movie.tmdb_id)
       : await getMovieDetails(movie.tmdb_id);
   const addedByName = movie.added_by_profile?.display_name ?? "неизвестно";
+  // Me first, matching the cards in the list.
+  const raters = (membersRes.data ?? [])
+    .map((m, index) => ({ ...m, index }))
+    .sort((a, b) => Number(b.id === userId) - Number(a.id === userId));
 
   return (
     <TitleDetails
@@ -52,6 +61,15 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       <div className="w-fit">
         <StatusToggle movieId={movie.id} status={movie.status} />
       </div>
+
+      {movie.status === "watched" && movie.ratings && (
+        <MovieRatings
+          movieId={movie.id}
+          members={raters}
+          meId={userId}
+          ratings={movie.ratings}
+        />
+      )}
     </TitleDetails>
   );
 }

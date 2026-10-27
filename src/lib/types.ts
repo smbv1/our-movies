@@ -19,7 +19,39 @@ export type Movie = {
   watched_at: string | null;
   // Members who marked that they want to watch it («кто хочет»).
   wanted_by: string[];
+  // Each member's score after watching, 1–10, keyed by member id.
+  ratings: Record<string, number>;
+  // TMDB genre names; null until the details have been fetched.
+  genres: string[] | null;
+  // Length in minutes (one episode for a series), when TMDB knows it.
+  runtime: number | null;
 };
+
+// "1 ч 45 мин", "50 мин", "2 ч".
+export function formatRuntime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} мин`;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+export const MAX_RATING = 10;
+
+export type RatingVerdict = "match" | "close" | "apart";
+
+// How two scores compare: within a point is a match, three or more apart is a split.
+export function ratingVerdict(scores: number[]): RatingVerdict | null {
+  if (scores.length < 2) return null;
+  const spread = Math.max(...scores) - Math.min(...scores);
+  return spread <= 1 ? "match" : spread >= 3 ? "apart" : "close";
+}
+
+// Mean of the members' scores, or null when nobody has rated it.
+export function averageRating(ratings: Record<string, number>): number | null {
+  const scores = Object.values(ratings);
+  if (scores.length === 0) return null;
+  return scores.reduce((sum, n) => sum + n, 0) / scores.length;
+}
 
 export type Profile = {
   id: string;

@@ -9,14 +9,12 @@ import {
   type TmdbSeason,
   type TmdbTvDetails,
 } from "@/lib/tmdb";
-import { posterSrcSet, tmdbImage, type SearchResult } from "@/lib/types";
-
-function formatRuntime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m} мин`;
-  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
-}
+import {
+  formatRuntime,
+  posterSrcSet,
+  tmdbImage,
+  type SearchResult,
+} from "@/lib/types";
 
 // Russian noun form for a count: plural(3, ["сезон", "сезона", "сезонов"]) → "3 сезона".
 function plural(n: number, [one, few, many]: [string, string, string]): string {
