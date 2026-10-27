@@ -17,9 +17,11 @@ const DEBOUNCE_MS = 300;
 type MovieSearchProps = {
   // What is already in the list, keyed by `${media_type}-${tmdb_id}`.
   existing: Record<string, MovieStatus>;
+  // New titles go into the tab that is open, so adding from «Посмотрели» marks them watched.
+  addAs: MovieStatus;
 };
 
-export default function MovieSearch({ existing }: MovieSearchProps) {
+export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   // The query the current results belong to, to tell "nothing found" from "not searched yet".
@@ -98,11 +100,12 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
     setResults([]);
     setOpen(false);
     startTransition(async () => {
-      const result = await addMovie(movie);
+      const result = await addMovie(movie, addAs);
       if (result.error) {
         toast.show({ message: `«${movie.title}»: ${result.error}`, tone: "error" });
       } else {
-        toast.show({ message: `«${movie.title}» добавлен в «Хотим»` });
+        const tabName = addAs === "watched" ? "Посмотрели" : "Хотим";
+        toast.show({ message: `«${movie.title}» добавлен в «${tabName}»` });
       }
     });
   }
@@ -137,7 +140,11 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
               setOpen(false);
             }
           }}
-          placeholder="Найти фильм или сериал…"
+          placeholder={
+            addAs === "watched"
+              ? "Добавить в «Посмотрели»…"
+              : "Найти фильм или сериал…"
+          }
           aria-label="Найти фильм или сериал"
           autoComplete="off"
           className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900/90 pl-10 pr-11 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20"
@@ -205,9 +212,10 @@ export default function MovieSearch({ existing }: MovieSearchProps) {
                     type="button"
                     onClick={() => handleAdd(movie)}
                     disabled={isPending}
+                    aria-label={`Добавить «${movie.title}» в «${addAs === "watched" ? "Посмотрели" : "Хотим"}»`}
                     className="inline-flex flex-none items-center gap-2 rounded-lg bg-amber-400 px-3 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    + Добавить
+                    {addAs === "watched" ? "✓ Смотрели" : "+ Хотим"}
                   </button>
                 )}
               </li>

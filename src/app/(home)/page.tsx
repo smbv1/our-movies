@@ -80,7 +80,7 @@ export default async function Home({ searchParams }: PageProps) {
       {/* Search and tabs stay on screen while the list scrolls. */}
       <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2 border-b border-zinc-800/60 bg-stone-950/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:flex-row sm:items-center sm:px-6">
         <div className="sm:flex-1">
-          <MovieSearch existing={existing} />
+          <MovieSearch existing={existing} addAs={activeTab} />
         </div>
         <nav
           aria-label="Списки фильмов и сериалов"

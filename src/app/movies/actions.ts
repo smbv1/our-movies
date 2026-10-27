@@ -8,7 +8,10 @@ type ActionResult = { error: string | null };
 
 const UNIQUE_VIOLATION = "23505";
 
-export async function addMovie(movie: SearchResult): Promise<ActionResult> {
+export async function addMovie(
+  movie: SearchResult,
+  status: MovieStatus = "want",
+): Promise<ActionResult> {
   const supabase = await createClient();
   // my_list_id() resolves the list from the session, so both run at once.
   const [userId, listRes] = await Promise.all([
@@ -33,7 +36,8 @@ export async function addMovie(movie: SearchResult): Promise<ActionResult> {
     year: movie.year,
     poster_path: movie.poster_path,
     overview: movie.overview,
-    status: "want",
+    status,
+    watched_at: status === "watched" ? new Date().toISOString() : null,
     added_by: userId,
   });
 
