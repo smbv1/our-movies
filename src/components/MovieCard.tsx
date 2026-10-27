@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
-import { posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
+import { CardRating, type RatedMember } from "@/components/Ratings";
+import { formatRuntime, posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
 
 type MovieCardProps = {
   movie: Movie;
@@ -17,6 +18,10 @@ type MovieCardProps = {
   iWant?: boolean;
   bothWant?: boolean;
   onToggleWant?: () => void;
+  // Members whose scores show under a watched title; left out on the «Хотим» tab.
+  raters?: RatedMember[];
+  meId?: string;
+  onRate?: (score: number | null) => void;
   onToggleStatus: () => void;
   onDelete: () => void;
 };
@@ -35,6 +40,9 @@ export default function MovieCard({
   iWant = false,
   bothWant = false,
   onToggleWant,
+  raters,
+  meId = "",
+  onRate,
   onToggleStatus,
   onDelete,
 }: MovieCardProps) {
@@ -144,11 +152,28 @@ export default function MovieCard({
           )}
           <span className="truncate">
             {movie.year ?? "год неизвестен"}
-            {isWatched && movie.watched_at && (
+            {isWatched && movie.watched_at ? (
               <> · смотрели {watchedDate.format(new Date(movie.watched_at))}</>
+            ) : (
+              movie.runtime && (
+                <>
+                  {" "}
+                  · {movie.media_type === "tv" && "серия "}
+                  {formatRuntime(movie.runtime)}
+                </>
+              )
             )}
           </span>
         </p>
+        {raters && onRate && (
+          <CardRating
+            title={movie.title}
+            members={raters}
+            ratings={movie.ratings}
+            meId={meId}
+            onRate={onRate}
+          />
+        )}
       </div>
     </article>
   );

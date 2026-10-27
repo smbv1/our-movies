@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import DetailsBackfill from "@/components/DetailsBackfill";
 import LiveSync from "@/components/LiveSync";
 import Logo from "@/components/Logo";
 import type { Member } from "@/components/MemberAvatar";
@@ -43,7 +44,14 @@ export default async function Home({ searchParams }: PageProps) {
   // Without a list the user only sees their own profile and no movies.
   if (!list) redirect("/onboarding");
   const members: Member[] = membersRes.data ?? [];
-  const movies: Movie[] = moviesRes.data ?? [];
+  // Rows read before migration 0007 has run lack ratings; treat them as unrated.
+  const movies: Movie[] = (moviesRes.data ?? []).map((m) => ({
+    ...m,
+    ratings: m.ratings ?? {},
+    runtime: m.runtime ?? null,
+  }));
+  // undefined (column not there yet) is not "missing"; only null is.
+  const missingDetails = movies.filter((m) => m.genres === null).length;
 
   const nameById = Object.fromEntries(
     members.map((m) => [m.id, m.display_name]),
@@ -128,6 +136,7 @@ export default async function Home({ searchParams }: PageProps) {
         />
       </main>
       <LiveSync listId={list.id} />
+      <DetailsBackfill missing={missingDetails} />
     </div>
   );
 }
