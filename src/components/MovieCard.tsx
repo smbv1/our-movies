@@ -5,7 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import { CardRating, type RatedMember } from "@/components/Ratings";
 import { ProviderLogo } from "@/components/ServicesButton";
-import { formatRuntime, posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
+import {
+  formatRuntime,
+  formatSpot,
+  posterSrcSet,
+  tmdbImage,
+  type Movie,
+} from "@/lib/types";
 
 type MovieCardProps = {
   movie: Movie;
@@ -89,6 +95,18 @@ export default function MovieCard({
         {movie.media_type === "tv" && (
           <span className="pointer-events-none absolute left-2 top-2 rounded-md bg-sky-500/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-950">
             Сериал
+            {movie.progress_season && movie.progress_episode ? (
+              <span
+                title="Где остановились"
+                className="normal-case tracking-normal"
+              >
+                {" · "}
+                {formatSpot({
+                  season: movie.progress_season,
+                  episode: movie.progress_episode,
+                })}
+              </span>
+            ) : null}
           </span>
         )}
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  mainSeasons,
   pickTrailer,
   pickWatchRegion,
   REGION_NAMES,
@@ -12,6 +13,7 @@ import {
 import {
   formatRuntime,
   plural,
+  type EpisodeSpot,
   posterSrcSet,
   tmdbImage,
   type SearchResult,
@@ -38,6 +40,8 @@ type TitleDetailsProps = {
   backHref: string;
   // Provider ids of the couple's streaming services, marked in «Где посмотреть».
   services?: number[];
+  // Where the couple stopped in a series, marked on the seasons.
+  progress?: EpisodeSpot | null;
   // Status line and buttons shown under the overview.
   children: ReactNode;
 };
@@ -49,6 +53,7 @@ export default function TitleDetails({
   detailsError,
   backHref,
   services = [],
+  progress = null,
   children,
 }: TitleDetailsProps) {
   const isTv = base.media_type === "tv";
@@ -90,10 +95,7 @@ export default function TitleDetails({
     info && info.vote_count > 0 ? `★ ${info.vote_average.toFixed(1)}` : null,
   ].filter(Boolean);
 
-  // Season 0 holds specials; it is not part of the main run.
-  const seasons = (tv?.seasons ?? []).filter(
-    (season) => season.season_number > 0 && season.episode_count > 0,
-  );
+  const seasons = tv ? mainSeasons(tv) : [];
 
   return (
     <div className="relative flex min-h-screen w-full flex-col">
@@ -191,7 +193,7 @@ export default function TitleDetails({
             <h2 className="text-lg font-semibold text-zinc-100">Сезоны</h2>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {seasons.map((season) => (
-                <SeasonRow key={season.id} season={season} />
+                <SeasonRow key={season.id} season={season} progress={progress} />
               ))}
             </ul>
           </section>
@@ -256,17 +258,42 @@ export default function TitleDetails({
   );
 }
 
-function SeasonRow({ season }: { season: TmdbSeason }) {
+function SeasonRow({
+  season,
+  progress,
+}: {
+  season: TmdbSeason;
+  progress: EpisodeSpot | null;
+}) {
   const year = yearOf(season.air_date);
+  const n = season.season_number;
+  const done =
+    progress !== null &&
+    (n < progress.season ||
+      (n === progress.season && progress.episode >= season.episode_count));
+  const current = progress !== null && !done && n === progress.season;
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
-      <span className="min-w-0 truncate text-sm text-zinc-200">
+    <li
+      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+        current ? "border-sky-500/60 bg-sky-500/10" : "border-zinc-800 bg-zinc-900"
+      }`}
+    >
+      <span
+        className={`min-w-0 truncate text-sm ${done ? "text-zinc-500" : "text-zinc-200"}`}
+      >
+        {done && <span className="text-emerald-400">✓ </span>}
         {season.name}
       </span>
       <span className="flex-none text-xs text-zinc-500">
-        {[year, plural(season.episode_count, ["серия", "серии", "серий"])]
-          .filter(Boolean)
-          .join(" · ")}
+        {current ? (
+          <span className="text-sky-300">
+            {progress.episode} из {season.episode_count}
+          </span>
+        ) : (
+          [year, plural(season.episode_count, ["серия", "серии", "серий"])]
+            .filter(Boolean)
+            .join(" · ")
+        )}
       </span>
     </li>
   );

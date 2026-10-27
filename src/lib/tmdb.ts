@@ -139,6 +139,13 @@ export type TmdbTvDetails = {
   "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
 };
 
+// Seasons of the main run, in order. Season 0 holds specials, and empty ones are not out yet.
+export function mainSeasons(tv: TmdbTvDetails): TmdbSeason[] {
+  return tv.seasons
+    .filter((season) => season.season_number > 0 && season.episode_count > 0)
+    .sort((a, b) => a.season_number - b.season_number);
+}
+
 // Details, trailers and providers change rarely, so a day-old copy is fine.
 const DETAILS_CACHE_SECONDS = 24 * 60 * 60;
 
