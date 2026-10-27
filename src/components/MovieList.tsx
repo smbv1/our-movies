@@ -176,33 +176,29 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
         : "bg-zinc-900 text-zinc-400 ring-1 ring-zinc-800 hover:text-zinc-100"
     }`;
 
-  const hasTv = present.some((m) => m.media_type === "tv");
-  const hasMovies = present.some((m) => m.media_type === "movie");
-
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {hasTv && hasMovies && (
-          <div role="group" aria-label="Тип" className="flex gap-1.5">
-            {(
-              [
-                ["all", "Все"],
-                ["movie", "Фильмы"],
-                ["tv", "Сериалы"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={typeFilter === value}
-                onClick={() => setTypeFilter(value)}
-                className={chipClass(typeFilter === value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Shown on both tabs even when only one kind is there, so the bar looks the same. */}
+        <div role="group" aria-label="Тип" className="flex gap-1.5">
+          {(
+            [
+              ["all", "Все"],
+              ["movie", "Фильмы"],
+              ["tv", "Сериалы"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={typeFilter === value}
+              onClick={() => setTypeFilter(value)}
+              className={chipClass(typeFilter === value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         {members.length > 1 && (
           <div role="group" aria-label="Кто добавил" className="flex gap-1.5">
@@ -227,21 +223,39 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
 
         <label className="ml-auto flex items-center gap-2 text-xs text-zinc-500">
           <span className="sr-only sm:not-sr-only">Сортировка</span>
-          <select
-            value={sort}
-            onChange={(e) =>
-              setSortByTab((s) => ({ ...s, [tab]: e.target.value as SortKey }))
-            }
-            className="h-8 rounded-full border-0 bg-zinc-900 px-3 text-xs text-zinc-200 ring-1 ring-zinc-800 outline-none focus:ring-amber-500/50"
-          >
-            {(Object.keys(SORT_LABELS) as SortKey[])
-              .filter((key) => key !== "watched" || tab === "watched")
-              .map((key) => (
-                <option key={key} value={key}>
-                  {SORT_LABELS[key]}
-                </option>
-              ))}
-          </select>
+          {/* Native arrows sit flush against the rounded edge on desktop; draw our own. */}
+          <span className="relative flex items-center">
+            <select
+              value={sort}
+              onChange={(e) =>
+                setSortByTab((s) => ({
+                  ...s,
+                  [tab]: e.target.value as SortKey,
+                }))
+              }
+              className="h-8 appearance-none rounded-full border-0 bg-zinc-900 pl-3 pr-8 text-xs text-zinc-200 ring-1 ring-zinc-800 outline-none focus:ring-amber-500/50"
+            >
+              {(Object.keys(SORT_LABELS) as SortKey[])
+                .filter((key) => key !== "watched" || tab === "watched")
+                .map((key) => (
+                  <option key={key} value={key}>
+                    {SORT_LABELS[key]}
+                  </option>
+                ))}
+            </select>
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden
+              className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-zinc-400"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
         </label>
       </div>
 
@@ -273,7 +287,10 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
               addedByIndex={indexById[movie.added_by] ?? -1}
               eager={i < EAGER_COUNT}
               onToggleStatus={() =>
-                changeStatus(movie, movie.status === "want" ? "watched" : "want")
+                changeStatus(
+                  movie,
+                  movie.status === "want" ? "watched" : "want",
+                )
               }
               onDelete={() => remove(movie)}
             />
