@@ -4,6 +4,7 @@ import {
   pickTrailer,
   pickWatchRegion,
   REGION_NAMES,
+  type TmdbCredits,
   type TmdbMovieDetails,
   type TmdbProvider,
   type TmdbSeason,
@@ -14,6 +15,7 @@ import {
   plural,
   posterSrcSet,
   tmdbImage,
+  type MovieStatus,
   type SearchResult,
 } from "@/lib/types";
 
@@ -38,6 +40,8 @@ type TitleDetailsProps = {
   backHref: string;
   // Provider ids of the couple's streaming services, marked in «Где посмотреть».
   services?: number[];
+  // Tab the page belongs to; a person's page opened from here adds titles there.
+  tab?: MovieStatus;
   // Status line and buttons shown under the overview.
   children: ReactNode;
 };
@@ -49,6 +53,7 @@ export default function TitleDetails({
   detailsError,
   backHref,
   services = [],
+  tab = "want",
   children,
 }: TitleDetailsProps) {
   const isTv = base.media_type === "tv";
@@ -89,6 +94,8 @@ export default function TitleDetails({
     info?.genres.length ? info.genres.map((g) => g.name).join(", ") : null,
     info && info.vote_count > 0 ? `★ ${info.vote_average.toFixed(1)}` : null,
   ].filter(Boolean);
+
+  const people = creditPeople(info);
 
   // Season 0 holds specials; it is not part of the main run.
   const seasons = (tv?.seasons ?? []).filter(
@@ -169,6 +176,46 @@ export default function TitleDetails({
             )}
           </div>
         </section>
+
+        {people.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-zinc-100">
+              Создатели и актёры
+            </h2>
+            <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              {people.map((p) => (
+                <li key={`${p.id}-${p.role}`} className="flex-none">
+                  <Link
+                    href={`/person/${p.id}?tab=${tab}`}
+                    className="flex w-24 flex-col items-center gap-1.5 rounded-lg p-1 text-center transition hover:bg-zinc-900"
+                  >
+                    {p.photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={tmdbImage(p.photo, "w185")}
+                        alt=""
+                        loading="lazy"
+                        className="h-16 w-16 rounded-full object-cover ring-1 ring-white/10"
+                      />
+                    ) : (
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-800 text-xl text-zinc-500">
+                        👤
+                      </span>
+                    )}
+                    <span className="line-clamp-2 text-xs font-medium text-zinc-200">
+                      {p.name}
+                    </span>
+                    {p.role && (
+                      <span className="line-clamp-1 text-[11px] text-zinc-500">
+                        {p.role}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {trailer && (
           <section className="flex flex-col gap-3">
@@ -323,4 +370,33 @@ function ProviderRow({
       </ul>
     </div>
   );
+}
+
+const MAX_CAST = 12;
+
+type CreditPerson = { id: number; name: string; photo: string | null; role: string | null };
+
+// Directors (or a series' creators) first, then the top-billed cast, each linking to
+// their filmography.
+function creditPeople(info: TmdbMovieDetails | TmdbTvDetails | null): CreditPerson[] {
+  if (!info) return [];
+  const credits: TmdbCredits | undefined = info.credits;
+  const makers: CreditPerson[] =
+    "created_by" in info && info.created_by?.length
+      ? info.created_by.map((p) => ({
+          id: p.id,
+          name: p.name,
+          photo: p.profile_path,
+          role: "создатель",
+        }))
+      : (credits?.crew ?? [])
+          .filter((c) => c.job === "Director")
+          .map((c) => ({ id: c.id, name: c.name, photo: c.profile_path, role: "режиссёр" }));
+  const cast = [...(credits?.cast ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .slice(0, MAX_CAST)
+    .map((c) => ({ id: c.id, name: c.name, photo: c.profile_path, role: c.character || null }));
+  // A director who also acts keeps one chip.
+  const seen = new Set<number>();
+  return [...makers, ...cast].filter((p) => !seen.has(p.id) && (seen.add(p.id), true));
 }

@@ -56,6 +56,7 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
       detailsError={details.error}
       backHref={`/?tab=${movie.status}`}
       services={services}
+      tab={movie.status}
     >
       <p className="text-xs text-zinc-500">
         добавил(а): {addedByName} ·{" "}

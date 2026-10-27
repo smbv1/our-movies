@@ -6,9 +6,12 @@ import { addMovie } from "@/app/movies/actions";
 import Spinner from "@/components/Spinner";
 import { useToast } from "@/components/Toaster";
 import {
+  DEPARTMENT_NAMES,
   searchKey,
   tmdbImage,
   type MovieStatus,
+  type PersonResult,
+  type SearchResponse,
   type SearchResult,
 } from "@/lib/types";
 
@@ -25,6 +28,7 @@ type MovieSearchProps = {
 export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [people, setPeople] = useState<PersonResult[]>([]);
   // The query the current results belong to, to tell "nothing found" from "not searched yet".
   const [resultsFor, setResultsFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,12 +59,15 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
           } | null;
           throw new Error(body?.error ?? `Ошибка поиска ${res.status}`);
         }
-        const data = (await res.json()) as SearchResult[];
-        setResults(data);
+        // A response the browser cached before people were added is a bare array.
+        const data = (await res.json()) as SearchResponse | SearchResult[];
+        setResults(Array.isArray(data) ? data : data.titles);
+        setPeople(Array.isArray(data) ? [] : data.people);
         setResultsFor(trimmed);
       } catch (err) {
         if (controller.signal.aborted) return;
         setResults([]);
+        setPeople([]);
         setResultsFor(null);
         setSearchError(
           err instanceof Error && err.message
@@ -90,15 +97,28 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
 
   // Results are only shown for the current query, so no state reset is needed for short input.
   const visibleResults = isActive ? results : [];
+  const visiblePeople = isActive ? people : [];
   const nothingFound =
-    isActive && !loading && !searchError && resultsFor === trimmed && results.length === 0;
+    isActive &&
+    !loading &&
+    !searchError &&
+    resultsFor === trimmed &&
+    results.length === 0 &&
+    people.length === 0;
   const showPanel =
-    open && isActive && (loading || !!searchError || nothingFound || visibleResults.length > 0);
+    open &&
+    isActive &&
+    (loading ||
+      !!searchError ||
+      nothingFound ||
+      visibleResults.length > 0 ||
+      visiblePeople.length > 0);
 
   // Results close at once instead of after the save; the card shows up when the list re-renders.
   function handleAdd(movie: SearchResult) {
     setQuery("");
     setResults([]);
+    setPeople([]);
     setOpen(false);
     startTransition(async () => {
       const result = await addMovie(movie, addAs);
@@ -144,9 +164,9 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
           placeholder={
             addAs === "watched"
               ? "Добавить в «Посмотрели»…"
-              : "Найти фильм или сериал…"
+              : "Фильм, сериал или актёр…"
           }
-          aria-label="Найти фильм или сериал"
+          aria-label="Найти фильм, сериал, актёра или режиссёра"
           autoComplete="off"
           className="h-11 w-full rounded-xl border border-zinc-800 bg-zinc-900/90 pl-10 pr-11 text-base text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/20"
         />
@@ -159,7 +179,7 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
 
       {showPanel && (
         <ul className="animate-fade-in absolute inset-x-0 top-full z-40 mt-2 max-h-[min(65vh,32rem)] divide-y divide-zinc-800 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700/60 bg-zinc-900/95 shadow-2xl shadow-black/60 backdrop-blur">
-          {loading && visibleResults.length === 0 && (
+          {loading && visibleResults.length === 0 && visiblePeople.length === 0 && (
             <li className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-zinc-500">
               <Spinner />
               Ищем…
@@ -178,6 +198,43 @@ export default function MovieSearch({ existing, addAs }: MovieSearchProps) {
               </span>
             </li>
           )}
+          {visiblePeople.map((person) => (
+            <li key={`person-${person.tmdb_id}`} className="p-3">
+              <Link
+                href={`/person/${person.tmdb_id}?tab=${addAs}`}
+                onClick={() => setOpen(false)}
+                className="-m-1 flex min-w-0 items-center gap-3 rounded-lg p-1 transition hover:bg-zinc-800/60"
+              >
+                {person.profile_path ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tmdbImage(person.profile_path, "w92")}
+                    alt=""
+                    loading="lazy"
+                    className="h-11 w-11 flex-none rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-zinc-800 text-lg text-zinc-500">
+                    👤
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-zinc-100">
+                    {person.name}
+                  </p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {(person.department && DEPARTMENT_NAMES[person.department]) ??
+                      "Персона"}
+                    {person.known_for.length > 0 &&
+                      ` · ${person.known_for.join(", ")}`}
+                  </p>
+                </div>
+                <span className="flex-none text-xs text-amber-400">
+                  Фильмография ›
+                </span>
+              </Link>
+            </li>
+          ))}
           {visibleResults.map((movie) => {
             const status = existing[searchKey(movie)];
             return (

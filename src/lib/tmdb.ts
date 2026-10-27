@@ -1,6 +1,6 @@
 // Server-only helpers for calling the TMDB API with TMDB_API_TOKEN.
 
-import type { StoredProvider } from "@/lib/types";
+import type { MediaType, SearchResult, StoredProvider } from "@/lib/types";
 
 // On failure, `status` is the HTTP status our own API should answer with.
 export type TmdbResult<T> =
@@ -105,7 +105,25 @@ export type TmdbMovieDetails = {
   genres: { id: number; name: string }[];
   videos?: { results: TmdbVideo[] };
   "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
+  credits?: TmdbCredits;
 };
+
+export type TmdbCastMember = {
+  id: number;
+  name: string;
+  character: string | null;
+  profile_path: string | null;
+  order: number;
+};
+
+export type TmdbCrewMember = {
+  id: number;
+  name: string;
+  job: string;
+  profile_path: string | null;
+};
+
+export type TmdbCredits = { cast: TmdbCastMember[]; crew: TmdbCrewMember[] };
 
 export type TmdbSeason = {
   id: number;
@@ -135,8 +153,10 @@ export type TmdbTvDetails = {
   backdrop_path: string | null;
   genres: { id: number; name: string }[];
   seasons: TmdbSeason[];
+  created_by?: { id: number; name: string; profile_path: string | null }[];
   videos?: { results: TmdbVideo[] };
   "watch/providers"?: { results: Record<string, TmdbRegionProviders> };
+  credits?: TmdbCredits;
 };
 
 // Details, trailers and providers change rarely, so a day-old copy is fine.
@@ -144,7 +164,7 @@ const DETAILS_CACHE_SECONDS = 24 * 60 * 60;
 
 const DETAILS_QUERY = {
   language: "ru-RU",
-  append_to_response: "videos,watch/providers",
+  append_to_response: "videos,watch/providers,credits",
   // Videos are filtered by language; also take English and language-less ones.
   include_video_language: "ru,en,null",
 };
@@ -254,3 +274,96 @@ export function titleFacts(info: TmdbMovieDetails | TmdbTvDetails) {
 export function getTitleDetails(mediaType: "movie" | "tv", tmdbId: number) {
   return mediaType === "tv" ? getTvDetails(tmdbId) : getMovieDetails(tmdbId);
 }
+
+// A film or series as TMDB lists it in search, recommendations and filmographies;
+// films and series name their fields differently.
+export type TmdbListedTitle = {
+  id: number;
+  media_type?: string;
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+  release_date?: string;
+  first_air_date?: string;
+  poster_path: string | null;
+  overview?: string;
+  popularity?: number;
+  vote_average?: number;
+  vote_count?: number;
+  genre_ids?: number[];
+};
+
+function parseYear(date: string | undefined): number | null {
+  const year = parseInt(date?.slice(0, 4) ?? "", 10);
+  return Number.isNaN(year) ? null : year;
+}
+
+// The trimmed shape the site passes around; `mediaType` covers lists that omit media_type.
+export function toSearchResult(
+  item: TmdbListedTitle,
+  mediaType?: MediaType,
+): SearchResult | null {
+  const type = item.media_type ?? mediaType;
+  if (type === "movie" && item.title) {
+    return {
+      tmdb_id: item.id,
+      media_type: "movie",
+      title: item.title,
+      original_title: item.original_title ?? null,
+      year: parseYear(item.release_date),
+      poster_path: item.poster_path,
+      overview: item.overview || null,
+    };
+  }
+  if (type === "tv" && item.name) {
+    return {
+      tmdb_id: item.id,
+      media_type: "tv",
+      title: item.name,
+      original_title: item.original_name ?? null,
+      year: parseYear(item.first_air_date),
+      poster_path: item.poster_path,
+      overview: item.overview || null,
+    };
+  }
+  return null;
+}
+
+// Recommendations are recomputed by TMDB rarely; a day-old copy is fine.
+export function getRecommendations(mediaType: MediaType, tmdbId: number) {
+  return tmdbGet<{ results: TmdbListedTitle[] }>(
+    `/${mediaType}/${tmdbId}/recommendations`,
+    { language: "ru-RU" },
+    { revalidate: DETAILS_CACHE_SECONDS },
+  );
+}
+
+export type TmdbPersonCredit = TmdbListedTitle & {
+  character?: string;
+  job?: string;
+  episode_count?: number;
+};
+
+export type TmdbPerson = {
+  id: number;
+  name: string;
+  also_known_as: string[];
+  biography: string | null;
+  birthday: string | null;
+  deathday: string | null;
+  place_of_birth: string | null;
+  known_for_department: string | null;
+  profile_path: string | null;
+  combined_credits?: { cast: TmdbPersonCredit[]; crew: TmdbPersonCredit[] };
+};
+
+// An actor or director with every film and series they worked on, in one request.
+export function getPerson(personId: number) {
+  return tmdbGet<TmdbPerson>(
+    `/person/${personId}`,
+    { language: "ru-RU", append_to_response: "combined_credits" },
+    { revalidate: DETAILS_CACHE_SECONDS },
+  );
+}
+

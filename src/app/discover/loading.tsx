@@ -1,0 +1,20 @@
+export default function Loading() {
+  return (
+    <div
+      role="status"
+      aria-label="Подбираем фильмы"
+      className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 pb-24 pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6"
+    >
+      <div className="h-4 w-20 animate-pulse rounded bg-zinc-800" />
+      <div className="h-8 w-56 animate-pulse rounded-md bg-zinc-800" />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        {Array.from({ length: 10 }, (_, i) => (
+          <div
+            key={i}
+            className="aspect-[2/3] animate-pulse rounded-xl bg-zinc-900"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
