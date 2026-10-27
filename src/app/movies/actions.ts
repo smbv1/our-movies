@@ -5,6 +5,7 @@ import { createClient, getUserId } from "@/lib/supabase/server";
 import { getTitleDetails, titleFacts } from "@/lib/tmdb";
 import {
   DETAILS_REFRESH_DAYS,
+  MAX_NOTE_LENGTH,
   MAX_RATING,
   type MovieStatus,
   type SearchResult,
@@ -126,6 +127,24 @@ export async function setRating(
 
   if (error) {
     return { error: "Не удалось сохранить оценку" };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/movies/${id}`);
+  return { error: null };
+}
+
+// Sets the signed-in member's note on the title, or clears it when empty.
+export async function setNote(id: string, body: string): Promise<ActionResult> {
+  const text = body.trim();
+  if (text.length > MAX_NOTE_LENGTH) {
+    return { error: `Заметка длиннее ${MAX_NOTE_LENGTH} символов` };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_note", { movie_id: id, body: text });
+
+  if (error) {
+    return { error: "Не удалось сохранить заметку" };
   }
 
   revalidatePath("/");

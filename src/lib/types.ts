@@ -21,6 +21,8 @@ export type Movie = {
   wanted_by: string[];
   // Each member's score after watching, 1–10, keyed by member id.
   ratings: Record<string, number>;
+  // Each member's note on the title, keyed by member id; undefined before migration 0012.
+  notes?: Record<string, string>;
   // TMDB genre names; null until the details have been fetched.
   genres: string[] | null;
   // Length in minutes (one episode for a series), when TMDB knows it.
@@ -88,6 +90,9 @@ export function capitalize(text: string): string {
 }
 
 export const MAX_RATING = 10;
+
+// Longest note a member can leave on a title, in characters.
+export const MAX_NOTE_LENGTH = 500;
 
 export type RatingVerdict = "match" | "close" | "apart";
 

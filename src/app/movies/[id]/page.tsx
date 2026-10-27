@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import MovieNotes from "@/components/MovieNotes";
 import MovieRatings from "@/components/MovieRatings";
 import StatusToggle from "@/components/StatusToggle";
 import TitleDetails from "@/components/TitleDetails";
@@ -72,6 +73,16 @@ export default async function MoviePage({ params }: PageProps<"/movies/[id]">) {
           members={raters}
           meId={userId}
           ratings={movie.ratings}
+        />
+      )}
+
+      {/* No notes before migration 0012 has run. */}
+      {movie.notes && (
+        <MovieNotes
+          movieId={movie.id}
+          members={raters}
+          meId={userId}
+          notes={movie.notes}
         />
       )}
     </TitleDetails>
