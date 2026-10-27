@@ -148,6 +148,35 @@ export type SearchResult = {
   overview: string | null;
 };
 
+// An actor or director found by /api/search.
+export type PersonResult = {
+  tmdb_id: number;
+  name: string;
+  profile_path: string | null;
+  // TMDB's department in English ("Acting", "Directing").
+  department: string | null;
+  // A few titles they are best known for.
+  known_for: string[];
+};
+
+// "Acting" → "Актёр", for the line under a person's name.
+export const DEPARTMENT_NAMES: Record<string, string> = {
+  Acting: "Актёр",
+  Directing: "Режиссёр",
+  Writing: "Сценарист",
+  Production: "Продюсер",
+  Sound: "Композитор",
+  Camera: "Оператор",
+  Editing: "Монтажёр",
+  Creator: "Создатель",
+};
+
+// What /api/search answers with.
+export type SearchResponse = {
+  titles: SearchResult[];
+  people: PersonResult[];
+};
+
 // Identifies a TMDB title across films and series, e.g. "tv-1396".
 export function searchKey(m: { media_type: MediaType; tmdb_id: number }): string {
   return `${m.media_type}-${m.tmdb_id}`;

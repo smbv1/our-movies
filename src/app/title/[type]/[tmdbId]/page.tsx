@@ -99,6 +99,7 @@ export default async function TitlePreviewPage({
       detailsError={null}
       backHref={`/?tab=${tab}`}
       services={services}
+      tab={tab}
     >
       <p className="text-xs text-zinc-500">Ещё не в нашем списке</p>
       <AddTitleButtons movie={movie} preferred={tab} />

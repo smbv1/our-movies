@@ -1,66 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, getUserId } from "@/lib/supabase/server";
-import { tmdbGet } from "@/lib/tmdb";
-import type { SearchResult } from "@/lib/types";
+import { tmdbGet, toSearchResult, type TmdbListedTitle } from "@/lib/tmdb";
+import type { PersonResult, SearchResponse } from "@/lib/types";
 
-// /search/multi mixes films, series and people; films and series name their fields differently.
-type TmdbMultiResult =
-  | {
-      media_type: "movie";
-      id: number;
-      title: string;
-      original_title?: string;
-      release_date?: string;
-      poster_path: string | null;
-      overview: string;
-    }
-  | {
-      media_type: "tv";
-      id: number;
-      name: string;
-      original_name?: string;
-      first_air_date?: string;
-      poster_path: string | null;
-      overview: string;
-    }
-  | { media_type: "person"; id: number };
+// /search/multi mixes films, series and people.
+type TmdbPersonResult = {
+  media_type: "person";
+  id: number;
+  name: string;
+  profile_path: string | null;
+  known_for_department?: string;
+  popularity?: number;
+  known_for?: TmdbListedTitle[];
+};
 
 type TmdbSearchResponse = {
-  results: TmdbMultiResult[];
+  results: (TmdbListedTitle | TmdbPersonResult)[];
 };
 
 const MAX_RESULTS = 10;
+const MAX_PEOPLE = 3;
 
-function parseYear(date: string | undefined): number | null {
-  const year = parseInt(date?.slice(0, 4) ?? "", 10);
-  return Number.isNaN(year) ? null : year;
+function isPerson(item: TmdbListedTitle | TmdbPersonResult): item is TmdbPersonResult {
+  return item.media_type === "person";
 }
 
-// Films and series in one shape; people are dropped.
-function toSearchResult(item: TmdbMultiResult): SearchResult | null {
-  if (item.media_type === "movie") {
-    return {
-      tmdb_id: item.id,
-      media_type: "movie",
-      title: item.title,
-      original_title: item.original_title ?? null,
-      year: parseYear(item.release_date),
-      poster_path: item.poster_path,
-      overview: item.overview || null,
-    };
-  }
-  if (item.media_type === "tv") {
-    return {
-      tmdb_id: item.id,
-      media_type: "tv",
-      title: item.name,
-      original_title: item.original_name ?? null,
-      year: parseYear(item.first_air_date),
-      poster_path: item.poster_path,
-      overview: item.overview || null,
-    };
-  }
-  return null;
+function toPersonResult(item: TmdbPersonResult): PersonResult {
+  return {
+    tmdb_id: item.id,
+    name: item.name,
+    profile_path: item.profile_path,
+    department: item.known_for_department ?? null,
+    known_for: (item.known_for ?? [])
+      .map((t) => t.title ?? t.name)
+      .filter((t): t is string => !!t)
+      .slice(0, 3),
+  };
 }
 
 // TMDB search results barely change; the server keeps them for an hour.
@@ -74,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) {
-    return NextResponse.json([]);
+    return NextResponse.json({ titles: [], people: [] } satisfies SearchResponse);
   }
 
   const res = await tmdbGet<TmdbSearchResponse>("/search/multi", {
@@ -86,13 +61,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: res.error }, { status: res.status });
   }
 
-  const results = res.data.results
-    .map(toSearchResult)
+  const titles = res.data.results
+    .map((item) => (isPerson(item) ? null : toSearchResult(item)))
     .filter((item) => item !== null)
     .slice(0, MAX_RESULTS);
+  // Only people with a photo or known titles; TMDB has many namesakes nobody looks for.
+  const people = res.data.results
+    .filter(isPerson)
+    .filter((p) => p.profile_path || p.known_for?.length)
+    .slice(0, MAX_PEOPLE)
+    .map(toPersonResult);
 
   // The browser reuses results when the same query is typed again.
-  return NextResponse.json(results, {
+  return NextResponse.json({ titles, people } satisfies SearchResponse, {
     headers: { "Cache-Control": "private, max-age=300" },
   });
 }

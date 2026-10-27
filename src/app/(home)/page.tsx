@@ -108,6 +108,15 @@ export default async function Home({ searchParams }: PageProps) {
         </Link>
         <div className="flex flex-none items-center gap-2">
           <Link
+            href="/discover"
+            aria-label="Что посмотреть: рекомендации"
+            title="Что посмотреть"
+            className="flex h-8 items-center gap-1.5 rounded-full px-2 text-sm text-zinc-300 ring-1 ring-zinc-800 transition hover:bg-zinc-900 hover:text-zinc-50 sm:px-3"
+          >
+            <span aria-hidden>✨</span>
+            <span className="hidden sm:inline">Что посмотреть</span>
+          </Link>
+          <Link
             href="/stats"
             aria-label="Статистика пары"
             title="Статистика пары"
