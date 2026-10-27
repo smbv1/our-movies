@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { login } from "@/app/auth/actions";
 import { buttonClass, inputClass } from "@/app/auth/auth-card";
@@ -21,7 +22,15 @@ export function LoginForm() {
         />
       </label>
       <label className="block space-y-1.5">
-        <span className="text-sm text-zinc-400">Пароль</span>
+        <span className="flex items-baseline justify-between text-sm text-zinc-400">
+          Пароль
+          <Link
+            href="/forgot-password"
+            className="text-xs text-zinc-500 underline-offset-4 transition hover:text-zinc-200 hover:underline"
+          >
+            Забыли пароль?
+          </Link>
+        </span>
         <input
           name="password"
           type="password"
