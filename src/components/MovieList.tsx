@@ -8,11 +8,15 @@ import {
   setWant,
 } from "@/app/movies/actions";
 import EmptyState from "@/components/EmptyState";
+import FilterSelect from "@/components/FilterSelect";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import MovieCard from "@/components/MovieCard";
 import { useToast } from "@/components/Toaster";
 import {
   averageRating,
+  capitalize,
+  LENGTHS,
+  type LengthKey,
   ratingVerdict,
   type MediaType,
   type Movie,
@@ -42,13 +46,7 @@ const SORT_LABELS: Record<SortKey, string> = {
   title: "По названию",
 };
 
-// Length buckets in minutes; a series is judged by one episode.
-const LENGTHS = {
-  short: { label: "До 1,5 ч", test: (min: number) => min <= 90 },
-  medium: { label: "До 2 ч", test: (min: number) => min <= 120 },
-  long: { label: "Дольше 2 ч", test: (min: number) => min > 120 },
-} as const;
-type LengthFilter = "all" | keyof typeof LENGTHS;
+type LengthFilter = "all" | LengthKey;
 
 // "match" / "apart": both rated and agreed or split; "unrated": I haven't rated it yet.
 type RatingFilter = "all" | "match" | "apart" | "unrated";
@@ -460,7 +458,7 @@ export default function MovieList({ movies, members, meId, tab }: MovieListProps
               highlight
               options={[
                 ["all", "Любая длина"],
-                ...(Object.keys(LENGTHS) as (keyof typeof LENGTHS)[]).map(
+                ...(Object.keys(LENGTHS) as LengthKey[]).map(
                   (key): [string, string] => [key, LENGTHS[key].label],
                 ),
               ]}
@@ -567,59 +565,5 @@ function countBy(values: string[]): string[] {
   for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
   return [...counts.keys()].sort(
     (a, b) => counts.get(b)! - counts.get(a)! || byTitle.compare(a, b),
-  );
-}
-
-// TMDB's Russian genre names are lowercase ("боевик").
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-type FilterSelectProps = {
-  value: string;
-  onChange: (value: string) => void;
-  options: [value: string, label: string][];
-  // Accessible name, for selects without a visible label.
-  label?: string;
-  // Light up while set to anything but the first option.
-  highlight?: boolean;
-};
-
-// A pill-shaped native select; native arrows sit flush against the rounded edge on desktop, so it draws its own.
-function FilterSelect({ value, onChange, options, label, highlight = false }: FilterSelectProps) {
-  const active = highlight && value !== options[0]?.[0];
-  return (
-    <span className="relative flex flex-none items-center">
-      <select
-        value={value}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-        className={`h-8 max-w-[11rem] appearance-none truncate rounded-full border-0 pl-3 pr-8 text-xs ring-1 outline-none focus:ring-amber-500/50 ${
-          active
-            ? "bg-zinc-100 font-medium text-zinc-900 ring-zinc-100"
-            : "bg-zinc-900 text-zinc-200 ring-zinc-800"
-        }`}
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-      <svg
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        aria-hidden
-        className={`pointer-events-none absolute right-2.5 h-3.5 w-3.5 ${
-          active ? "text-zinc-600" : "text-zinc-400"
-        }`}
-      >
-        <path
-          fillRule="evenodd"
-          d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-          clipRule="evenodd"
-        />
-      </svg>
-    </span>
   );
 }
