@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
-import { deleteMovie, setStatus } from "@/app/movies/actions";
+import { deleteMovie, setStatus, setWant } from "@/app/movies/actions";
 import EmptyState from "@/components/EmptyState";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import MovieCard from "@/components/MovieCard";
@@ -12,14 +12,19 @@ type MovieListProps = {
   // Everything in the current tab.
   movies: Movie[];
   members: Member[];
+  // The signed-in member, whose «хочу» mark the heart button toggles.
+  meId: string;
   tab: MovieStatus;
 };
 
 type TypeFilter = "all" | MediaType;
-type SortKey = "added" | "watched" | "year" | "title";
+// "both": everyone wants it; a member id: only that member wants it.
+type WantFilter = "all" | "both" | string;
+type SortKey = "added" | "wanted" | "watched" | "year" | "title";
 
 const SORT_LABELS: Record<SortKey, string> = {
   added: "Сначала новые",
+  wanted: "Сначала общие",
   watched: "По дате просмотра",
   year: "По году выхода",
   title: "По названию",
@@ -35,6 +40,12 @@ function sortMovies(movies: Movie[], key: SortKey): Movie[] {
   switch (key) {
     case "added":
       return sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    case "wanted":
+      return sorted.sort(
+        (a, b) =>
+          b.wanted_by.length - a.wanted_by.length ||
+          b.created_at.localeCompare(a.created_at),
+      );
     case "watched":
       return sorted.sort((a, b) =>
         (b.watched_at ?? "").localeCompare(a.watched_at ?? ""),
@@ -52,11 +63,14 @@ function focusSearch() {
   input?.focus();
 }
 
-export default function MovieList({ movies, members, tab }: MovieListProps) {
+export default function MovieList({ movies, members, meId, tab }: MovieListProps) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [adderFilter, setAdderFilter] = useState<string>("all");
+  const [wantFilter, setWantFilter] = useState<WantFilter>("all");
+  // «Кто хочет» only matters for titles still to watch, and only in a pair.
+  const showWants = tab === "want" && members.length > 1;
   // The watched tab reads best by when you watched it; the want tab by when it was added.
   const [sortByTab, setSortByTab] = useState<Record<MovieStatus, SortKey>>({
     want: "added",
@@ -69,6 +83,14 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
   const [leavingIds, markLeaving] = useOptimistic(
     new Set<string>(),
     (ids, id: string) => new Set(ids).add(id),
+  );
+  // A tapped heart shows at once; it goes back if saving fails.
+  const [wantOverrides, overrideWant] = useOptimistic(
+    {} as Record<string, string[]>,
+    (overrides, change: { id: string; wantedBy: string[] }) => ({
+      ...overrides,
+      [change.id]: change.wantedBy,
+    }),
   );
   // Deleted cards wait here while the "Отменить" toast is up.
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -83,16 +105,40 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
   );
 
   const isGone = (id: string) => leavingIds.has(id) || deletingIds.has(id);
-  const present = movies.filter((m) => !isGone(m.id));
+  const present = movies
+    .filter((m) => !isGone(m.id))
+    .map((m) =>
+      wantOverrides[m.id] ? { ...m, wanted_by: wantOverrides[m.id] } : m,
+    );
+  // Each tab shows only its own person filter; the other one's choice is kept but not applied.
+  const adderActive = !showWants && adderFilter !== "all";
+  const wantActive = showWants && wantFilter !== "all";
+  const matchesWant = (m: Movie) =>
+    wantFilter === "both"
+      ? members.every((p) => m.wanted_by.includes(p.id))
+      : m.wanted_by.length === 1 && m.wanted_by[0] === wantFilter;
   const filtered = sortMovies(
     present.filter(
       (m) =>
         (typeFilter === "all" || m.media_type === typeFilter) &&
-        (adderFilter === "all" || m.added_by === adderFilter),
+        (!adderActive || m.added_by === adderFilter) &&
+        (!wantActive || matchesWant(m)),
     ),
     sort,
   );
-  const isFiltered = typeFilter !== "all" || adderFilter !== "all";
+  const isFiltered = typeFilter !== "all" || adderActive || wantActive;
+
+  function toggleWant(movie: Movie) {
+    const wants = !movie.wanted_by.includes(meId);
+    const wantedBy = wants
+      ? [...movie.wanted_by, meId]
+      : movie.wanted_by.filter((id) => id !== meId);
+    startTransition(async () => {
+      overrideWant({ id: movie.id, wantedBy });
+      const result = await setWant(movie.id, wants);
+      if (result.error) toast.show({ message: result.error, tone: "error" });
+    });
+  }
 
   function changeStatus(movie: Movie, next: MovieStatus) {
     startTransition(async () => {
@@ -200,7 +246,38 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
           ))}
         </div>
 
-        {members.length > 1 && (
+        {showWants && (
+          <div role="group" aria-label="Кто хочет" className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              aria-pressed={wantFilter === "both"}
+              onClick={() => setWantFilter(wantFilter === "both" ? "all" : "both")}
+              title="Хотят оба"
+              className={chipClass(wantFilter === "both")}
+            >
+              <span aria-hidden className="text-rose-400">♥</span>
+              Оба хотят
+            </button>
+            {members.map((m, i) => {
+              const active = wantFilter === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setWantFilter(active ? "all" : m.id)}
+                  title={`Хочет только ${m.display_name}`}
+                  className={chipClass(active)}
+                >
+                  <MemberAvatar name={m.display_name} index={i} size="xs" />
+                  Только {m.display_name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {members.length > 1 && !showWants && (
           <div role="group" aria-label="Кто добавил" className="flex gap-1.5">
             {members.map((m, i) => {
               const active = adderFilter === m.id;
@@ -236,7 +313,11 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
               className="h-8 appearance-none rounded-full border-0 bg-zinc-900 pl-3 pr-8 text-xs text-zinc-200 ring-1 ring-zinc-800 outline-none focus:ring-amber-500/50"
             >
               {(Object.keys(SORT_LABELS) as SortKey[])
-                .filter((key) => key !== "watched" || tab === "watched")
+                .filter(
+                  (key) =>
+                    (key !== "watched" || tab === "watched") &&
+                    (key !== "wanted" || showWants),
+                )
                 .map((key) => (
                   <option key={key} value={key}>
                     {SORT_LABELS[key]}
@@ -269,6 +350,7 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
               onClick={() => {
                 setTypeFilter("all");
                 setAdderFilter("all");
+                setWantFilter("all");
               }}
               className="mt-1 rounded-lg px-4 py-2 text-sm font-medium text-amber-400 ring-1 ring-amber-400/40 transition hover:bg-amber-400/10"
             >
@@ -286,6 +368,16 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
               addedByName={nameById[movie.added_by] ?? "?"}
               addedByIndex={indexById[movie.added_by] ?? -1}
               eager={i < EAGER_COUNT}
+              wanters={
+                showWants
+                  ? members
+                      .map((m, index) => ({ ...m, index }))
+                      .filter((m) => movie.wanted_by.includes(m.id))
+                  : undefined
+              }
+              iWant={movie.wanted_by.includes(meId)}
+              bothWant={members.every((m) => movie.wanted_by.includes(m.id))}
+              onToggleWant={() => toggleWant(movie)}
               onToggleStatus={() =>
                 changeStatus(
                   movie,

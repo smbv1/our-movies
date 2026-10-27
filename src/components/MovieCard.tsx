@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import MemberAvatar from "@/components/MemberAvatar";
+import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import { posterSrcSet, tmdbImage, type Movie } from "@/lib/types";
 
 type MovieCardProps = {
@@ -12,6 +12,11 @@ type MovieCardProps = {
   addedByIndex: number;
   // Load the poster right away instead of lazily (cards in the first row).
   eager?: boolean;
+  // Members who want it, with their color index. Left out where «кто хочет» isn't shown.
+  wanters?: (Member & { index: number })[];
+  iWant?: boolean;
+  bothWant?: boolean;
+  onToggleWant?: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
 };
@@ -26,10 +31,15 @@ export default function MovieCard({
   addedByName,
   addedByIndex,
   eager = false,
+  wanters,
+  iWant = false,
+  bothWant = false,
+  onToggleWant,
   onToggleStatus,
   onDelete,
 }: MovieCardProps) {
   const isWatched = movie.status === "watched";
+  const showWants = wanters !== undefined;
   const href = `/movies/${movie.id}`;
 
   return (
@@ -77,6 +87,27 @@ export default function MovieCard({
           onDelete={onDelete}
         />
 
+        {showWants && (
+          <button
+            type="button"
+            onClick={onToggleWant}
+            aria-pressed={iWant}
+            aria-label={
+              iWant
+                ? `Убрать отметку «хочу» с «${movie.title}»`
+                : `Отметить, что хочу посмотреть «${movie.title}»`
+            }
+            title={iWant ? "Уже не хочу" : "Хочу посмотреть"}
+            className={`absolute bottom-2 left-2 flex h-10 w-10 items-center justify-center rounded-full text-xl leading-none shadow-lg shadow-black/40 transition active:scale-90 ${
+              iWant
+                ? "bg-rose-500 text-white hover:bg-rose-400"
+                : "bg-zinc-900/80 text-zinc-200 ring-1 ring-white/15 hover:bg-zinc-800"
+            }`}
+          >
+            {iWant ? "♥" : "♡"}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onToggleStatus}
@@ -103,8 +134,14 @@ export default function MovieCard({
           </Link>
         </h3>
         <p className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
-          <MemberAvatar name={addedByName} index={addedByIndex} size="xs" />
-          <span className="sr-only">добавил(а) {addedByName},</span>
+          {showWants ? (
+            <WantedBy wanters={wanters} bothWant={bothWant} />
+          ) : (
+            <>
+              <MemberAvatar name={addedByName} index={addedByIndex} size="xs" />
+              <span className="sr-only">добавил(а) {addedByName},</span>
+            </>
+          )}
           <span className="truncate">
             {movie.year ?? "год неизвестен"}
             {isWatched && movie.watched_at && (
@@ -114,6 +151,41 @@ export default function MovieCard({
         </p>
       </div>
     </article>
+  );
+}
+
+// Overlapping avatars of who wants the title, and "оба" when that's everyone.
+function WantedBy({
+  wanters,
+  bothWant,
+}: {
+  wanters: (Member & { index: number })[];
+  bothWant: boolean;
+}) {
+  if (wanters.length === 0) {
+    return <span className="flex-none text-zinc-600">никто ·</span>;
+  }
+  const names = wanters.map((m) => m.display_name).join(" и ");
+  return (
+    <>
+      <span className="flex flex-none -space-x-1" title={`Хочет: ${names}`}>
+        {wanters.map((m) => (
+          <MemberAvatar
+            key={m.id}
+            name={m.display_name}
+            index={m.index}
+            size="xs"
+            className="ring-2 ring-stone-950"
+          />
+        ))}
+      </span>
+      <span className="sr-only">хочет: {names},</span>
+      {bothWant && (
+        <span aria-hidden className="flex-none font-medium text-rose-400">
+          оба ·
+        </span>
+      )}
+    </>
   );
 }
 
