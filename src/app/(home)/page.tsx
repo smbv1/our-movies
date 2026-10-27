@@ -117,6 +117,16 @@ export default async function Home({ searchParams }: PageProps) {
             <span className="hidden sm:inline">Что посмотреть</span>
           </Link>
           <Link
+            href="/swipe"
+            aria-label="Свайпы: выбрать вместе"
+            title="Свайпы: выбрать вместе"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-rose-300 ring-1 ring-zinc-800 transition hover:bg-zinc-900 hover:text-rose-200"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden className="h-4 w-4">
+              <path d="M10 17.3 8.8 16.2C4.6 12.4 2 10 2 7.1 2 4.7 3.9 2.8 6.3 2.8c1.4 0 2.7.6 3.7 1.7 1-1.1 2.3-1.7 3.7-1.7 2.4 0 4.3 1.9 4.3 4.3 0 2.9-2.6 5.3-6.8 9.1L10 17.3Z" />
+            </svg>
+          </Link>
+          <Link
             href="/stats"
             aria-label="Статистика пары"
             title="Статистика пары"
