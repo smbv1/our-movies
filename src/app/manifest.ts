@@ -34,6 +34,12 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
+        name: "Свайпы: выбрать вместе",
+        short_name: "Свайпы",
+        url: "/swipe",
+        icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
         name: "Посмотрели",
         url: "/?tab=watched",
         icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
