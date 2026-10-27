@@ -32,6 +32,8 @@ type MovieCardProps = {
   // Streaming services under the title, with the couple's own ones (ids) lit up.
   // Left out where they aren't shown.
   services?: number[];
+  // Members' notes on the title with their color index, me first.
+  notes?: (Member & { index: number; text: string })[];
   onToggleStatus: () => void;
   onDelete: () => void;
 };
@@ -54,6 +56,7 @@ export default function MovieCard({
   meId = "",
   onRate,
   services,
+  notes = [],
   onToggleStatus,
   onDelete,
 }: MovieCardProps) {
@@ -195,6 +198,7 @@ export default function MovieCard({
             services={services}
           />
         )}
+        {notes.length > 0 && <CardNotes notes={notes} />}
         {raters && onRate && (
           <CardRating
             title={movie.title}
@@ -246,6 +250,28 @@ function CardProviders({
       {region && region !== "KG" && (
         <span aria-hidden className="text-[10px] uppercase text-zinc-600">
           {region}
+        </span>
+      )}
+    </p>
+  );
+}
+
+// The first note in one line under the title; the page shows them in full.
+function CardNotes({ notes }: { notes: NonNullable<MovieCardProps["notes"]> }) {
+  const [first] = notes;
+  const all = notes.map((n) => `${n.display_name}: ${n.text}`).join("\n");
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-zinc-400" title={all}>
+      <span aria-hidden className="flex-none">
+        💬
+      </span>
+      <span className="sr-only">Заметки. {all}</span>
+      <span aria-hidden className="truncate italic">
+        {first.text}
+      </span>
+      {notes.length > 1 && (
+        <span aria-hidden className="flex-none text-[10px] text-zinc-500">
+          +{notes.length - 1}
         </span>
       )}
     </p>
