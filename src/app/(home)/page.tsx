@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import LiveSync from "@/components/LiveSync";
 import Logo from "@/components/Logo";
 import type { Member } from "@/components/MemberAvatar";
 import MovieList from "@/components/MovieList";
@@ -113,10 +114,20 @@ export default async function Home({ searchParams }: PageProps) {
 
       <main className="flex flex-col gap-5 pt-5">
         {activeTab === "want" && (
-          <RandomPick movies={wantMovies} nameById={nameById} />
+          <RandomPick
+            movies={wantMovies}
+            nameById={nameById}
+            memberCount={members.length}
+          />
         )}
-        <MovieList movies={shown} members={members} tab={activeTab} />
+        <MovieList
+          movies={shown}
+          members={members}
+          meId={userId}
+          tab={activeTab}
+        />
       </main>
+      <LiveSync listId={list.id} />
     </div>
   );
 }

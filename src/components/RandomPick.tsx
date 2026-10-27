@@ -10,6 +10,7 @@ import { tmdbImage, type MediaType, type Movie } from "@/lib/types";
 type RandomPickProps = {
   movies: Movie[];
   nameById: Record<string, string>;
+  memberCount: number;
 };
 
 type Kind = "all" | MediaType;
@@ -26,14 +27,22 @@ function pickFrom(pool: Movie[], currentId: string | null): Movie | undefined {
   return others[Math.floor(Math.random() * others.length)];
 }
 
-export default function RandomPick({ movies, nameById }: RandomPickProps) {
+export default function RandomPick({ movies, nameById, memberCount }: RandomPickProps) {
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [kind, setKind] = useState<Kind>("all");
+  // Pick only among titles both partners marked «хочу».
+  const [bothOnly, setBothOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const toast = useToast();
 
-  const pool = kind === "all" ? movies : movies.filter((m) => m.media_type === kind);
+  const bothWant = (m: Movie) => m.wanted_by.length >= memberCount;
+  const poolFor = (k: Kind, both: boolean) =>
+    movies.filter(
+      (m) => (k === "all" || m.media_type === k) && (!both || bothWant(m)),
+    );
+  const pool = poolFor(kind, bothOnly);
+  const canPickBoth = memberCount > 1 && movies.some(bothWant);
   const movie = movies.find((m) => m.id === pickedId);
   const isOpen = movie !== undefined;
   const hasBothKinds =
@@ -52,8 +61,14 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
 
   function changeKind(next: Kind) {
     setKind(next);
-    const nextPool =
-      next === "all" ? movies : movies.filter((m) => m.media_type === next);
+    const nextPool = poolFor(next, bothOnly);
+    if (movie && !nextPool.includes(movie)) roll(nextPool);
+  }
+
+  function toggleBothOnly() {
+    const next = !bothOnly;
+    setBothOnly(next);
+    const nextPool = poolFor(kind, next);
     if (movie && !nextPool.includes(movie)) roll(nextPool);
   }
 
@@ -119,19 +134,35 @@ export default function RandomPick({ movies, nameById }: RandomPickProps) {
             onClick={(e) => e.stopPropagation()}
             className="flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl"
           >
-            {hasBothKinds && (
+            {(hasBothKinds || canPickBoth) && (
               <div role="group" aria-label="Что выбирать" className="flex gap-1 p-4 pb-0">
-                {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
+                {canPickBoth && (
+                  <button
+                    type="button"
+                    aria-pressed={bothOnly}
+                    onClick={toggleBothOnly}
+                    disabled={!bothOnly && poolFor(kind, true).length === 0}
+                    className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                      bothOnly
+                        ? "bg-rose-500 text-white"
+                        : "bg-zinc-800/60 text-zinc-400 hover:text-zinc-100"
+                    } disabled:opacity-40`}
+                  >
+                    ♥ Оба хотят
+                  </button>
+                )}
+                {hasBothKinds && (Object.keys(KIND_LABELS) as Kind[]).map((k) => (
                   <button
                     key={k}
                     type="button"
                     aria-pressed={kind === k}
                     onClick={() => changeKind(k)}
+                    disabled={poolFor(k, bothOnly).length === 0}
                     className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                       kind === k
                         ? "bg-zinc-100 text-zinc-900"
                         : "bg-zinc-800/60 text-zinc-400 hover:text-zinc-100"
-                    }`}
+                    } disabled:opacity-40`}
                   >
                     {KIND_LABELS[k]}
                   </button>

@@ -17,6 +17,8 @@ export type Movie = {
   added_by: string;
   created_at: string;
   watched_at: string | null;
+  // Members who marked that they want to watch it («кто хочет»).
+  wanted_by: string[];
 };
 
 export type Profile = {

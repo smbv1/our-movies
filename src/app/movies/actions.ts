@@ -40,6 +40,8 @@ export async function addMovie(
       overview: movie.overview,
       status,
       watched_at: status === "watched" ? new Date().toISOString() : null,
+      // Adding a title to «Хотим» means the adder wants it.
+      wanted_by: status === "want" ? [userId] : [],
       added_by: userId,
     })
     .select("id")
@@ -85,6 +87,19 @@ export async function setStatus(
 
   revalidatePath("/");
   revalidatePath(`/movies/${id}`);
+  return { error: null };
+}
+
+// Marks or unmarks the title as wanted by the signed-in member only.
+export async function setWant(id: string, wants: boolean): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_want", { movie_id: id, wants });
+
+  if (error) {
+    return { error: "Не удалось сохранить отметку" };
+  }
+
+  revalidatePath("/");
   return { error: null };
 }
 
