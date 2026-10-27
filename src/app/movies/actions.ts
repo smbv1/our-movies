@@ -7,6 +7,7 @@ import {
   DETAILS_REFRESH_DAYS,
   MAX_NOTE_LENGTH,
   MAX_RATING,
+  type EpisodeSpot,
   type MovieStatus,
   type SearchResult,
 } from "@/lib/types";
@@ -145,6 +146,35 @@ export async function setNote(id: string, body: string): Promise<ActionResult> {
 
   if (error) {
     return { error: "Не удалось сохранить заметку" };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/movies/${id}`);
+  return { error: null };
+}
+
+// Saves the last episode the couple watched in a series, or clears it with null.
+export async function setProgress(
+  id: string,
+  spot: EpisodeSpot | null,
+): Promise<ActionResult> {
+  const valid = (n: number) => Number.isInteger(n) && n >= 1 && n <= 10000;
+  if (spot && !(valid(spot.season) && valid(spot.episode))) {
+    return { error: "Неверный номер сезона или серии" };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("movies")
+    .update({
+      progress_season: spot?.season ?? null,
+      progress_episode: spot?.episode ?? null,
+      progress_at: spot ? new Date().toISOString() : null,
+    })
+    .eq("id", id)
+    .eq("media_type", "tv");
+
+  if (error) {
+    return { error: "Не удалось сохранить серию" };
   }
 
   revalidatePath("/");
