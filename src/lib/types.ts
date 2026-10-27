@@ -21,6 +21,8 @@ export type Movie = {
   wanted_by: string[];
   // Each member's score after watching, 1–10, keyed by member id.
   ratings: Record<string, number>;
+  // Each member's note on the title, keyed by member id; undefined before migration 0012.
+  notes?: Record<string, string>;
   // TMDB genre names; null until the details have been fetched.
   genres: string[] | null;
   // Length in minutes (one episode for a series), when TMDB knows it.
@@ -32,7 +34,20 @@ export type Movie = {
   providers_region: string | null;
   // When the facts above were last taken from TMDB.
   details_at: string | null;
+  // The last episode the couple watched in a series; both null before they start.
+  // Undefined on rows read before migration 0010 has run.
+  progress_season?: number | null;
+  progress_episode?: number | null;
+  progress_at?: string | null;
 };
+
+// A spot in a series: season and episode, both from 1.
+export type EpisodeSpot = { season: number; episode: number };
+
+// "S2 · E5", short enough for a poster badge.
+export function formatSpot({ season, episode }: EpisodeSpot): string {
+  return `S${season} · E${episode}`;
+}
 
 // Stored streaming services are refreshed from TMDB after this many days.
 export const DETAILS_REFRESH_DAYS = 14;
@@ -88,6 +103,9 @@ export function capitalize(text: string): string {
 }
 
 export const MAX_RATING = 10;
+
+// Longest note a member can leave on a title, in characters.
+export const MAX_NOTE_LENGTH = 500;
 
 export type RatingVerdict = "match" | "close" | "apart";
 

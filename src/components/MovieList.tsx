@@ -617,6 +617,10 @@ export default function MovieList({
               meId={meId}
               onRate={(score) => rate(movie, score)}
               services={showProviders ? services : undefined}
+              notes={raters.flatMap((m) => {
+                const text = movie.notes?.[m.id];
+                return text ? [{ ...m, text }] : [];
+              })}
               onToggleStatus={() =>
                 changeStatus(
                   movie,
