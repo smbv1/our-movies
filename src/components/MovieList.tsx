@@ -112,7 +112,7 @@ export default function MovieList({ movies, members, tab }: MovieListProps) {
           label: "Отменить",
           onClick: () =>
             startTransition(async () => {
-              const undo = await setStatus(movie.id, prev);
+              const undo = await setStatus(movie.id, prev, movie.watched_at);
               if (undo.error) toast.show({ message: undo.error, tone: "error" });
             }),
         },

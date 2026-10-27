@@ -57,17 +57,26 @@ export async function addMovie(
   return { error: null, id: data.id };
 }
 
+// `restoreWatchedAt` brings back the original watch date when a status change is undone;
+// otherwise marking as watched stamps the current time.
 export async function setStatus(
   id: string,
   status: MovieStatus,
+  restoreWatchedAt?: string | null,
 ): Promise<ActionResult> {
+  let watchedAt: string | null = null;
+  if (status === "watched") {
+    const restored = restoreWatchedAt ? new Date(restoreWatchedAt) : null;
+    watchedAt =
+      restored && !Number.isNaN(restored.getTime())
+        ? restored.toISOString()
+        : new Date().toISOString();
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("movies")
-    .update({
-      status,
-      watched_at: status === "watched" ? new Date().toISOString() : null,
-    })
+    .update({ status, watched_at: watchedAt })
     .eq("id", id);
 
   if (error) {

@@ -1,8 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { logout } from "@/app/auth/actions";
-import { joinPartnerList, type JoinPartnerState } from "@/app/onboarding/actions";
+import {
+  joinPartnerList,
+  regenerateInviteCode,
+  type JoinPartnerState,
+} from "@/app/onboarding/actions";
 import LogoutButton from "@/components/LogoutButton";
 import MemberAvatar, { type Member } from "@/components/MemberAvatar";
 import Spinner from "@/components/Spinner";
@@ -17,6 +21,10 @@ type PairButtonProps = {
 // list by their code (for whoever skipped it at sign-up) and the logout button.
 export default function PairButton({ members, inviteCode }: PairButtonProps) {
   const [open, setOpen] = useState(false);
+  // The new code shows at once, before the page re-renders with it.
+  const [newCode, setNewCode] = useState<string | null>(null);
+  const [regenerating, startRegenerate] = useTransition();
+  const code = newCode ?? inviteCode;
   const toast = useToast();
   const [joinState, joinAction, joining] = useActionState(
     async (prev: JoinPartnerState, formData: FormData) => {
@@ -41,11 +49,30 @@ export default function PairButton({ members, inviteCode }: PairButtonProps) {
 
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText(inviteCode);
+      await navigator.clipboard.writeText(code);
       toast.show({ message: "Код скопирован" });
     } catch {
       toast.show({ message: "Не удалось скопировать, выделите код вручную", tone: "error" });
     }
+  }
+
+  function regenerate() {
+    if (
+      !window.confirm(
+        "Сменить код? Старый перестанет работать, по нему уже никто не войдёт.",
+      )
+    ) {
+      return;
+    }
+    startRegenerate(async () => {
+      const result = await regenerateInviteCode();
+      if (result.code) {
+        setNewCode(result.code);
+        toast.show({ message: "Код сменён" });
+      } else {
+        toast.show({ message: result.error ?? "Не удалось сменить код", tone: "error" });
+      }
+    });
   }
 
   const alone = members.length < 2;
@@ -123,7 +150,7 @@ export default function PairButton({ members, inviteCode }: PairButtonProps) {
               </p>
               <div className="flex items-center gap-2">
                 <span className="flex-1 select-all font-mono text-xl font-bold tracking-[0.3em] text-amber-400">
-                  {inviteCode}
+                  {code}
                 </span>
                 <button
                   type="button"
@@ -133,6 +160,15 @@ export default function PairButton({ members, inviteCode }: PairButtonProps) {
                   Копировать
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={regenerate}
+                disabled={regenerating}
+                className="inline-flex w-fit items-center gap-1.5 text-xs text-zinc-500 underline-offset-4 transition hover:text-zinc-300 hover:underline disabled:opacity-50"
+              >
+                {regenerating && <Spinner />}
+                Сменить код
+              </button>
             </div>
 
             {alone && (
