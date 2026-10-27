@@ -35,6 +35,19 @@ export function formatRuntime(minutes: number): string {
   return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
 }
 
+// Length buckets in minutes; a series is judged by one episode.
+export const LENGTHS = {
+  short: { label: "До 1,5 ч", test: (min: number) => min <= 90 },
+  medium: { label: "До 2 ч", test: (min: number) => min <= 120 },
+  long: { label: "Дольше 2 ч", test: (min: number) => min > 120 },
+} as const;
+export type LengthKey = keyof typeof LENGTHS;
+
+// TMDB's Russian genre names are lowercase ("боевик").
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export const MAX_RATING = 10;
 
 export type RatingVerdict = "match" | "close" | "apart";

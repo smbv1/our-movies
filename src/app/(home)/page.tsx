@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import DetailsBackfill from "@/components/DetailsBackfill";
+import InstallApp from "@/components/InstallApp";
 import LiveSync from "@/components/LiveSync";
 import Logo from "@/components/Logo";
 import type { Member } from "@/components/MemberAvatar";
@@ -16,11 +17,11 @@ import { searchKey, type List, type Movie, type MovieStatus } from "@/lib/types"
 export const instant = false;
 
 type PageProps = {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; pick?: string }>;
 };
 
 export default async function Home({ searchParams }: PageProps) {
-  const { tab } = await searchParams;
+  const { tab, pick } = await searchParams;
   const activeTab = tab === "watched" ? "watched" : "want";
 
   const supabase = await createClient();
@@ -87,7 +88,7 @@ export default async function Home({ searchParams }: PageProps) {
       </header>
 
       {/* Search and tabs stay on screen while the list scrolls. */}
-      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-2 border-b border-zinc-800/60 bg-stone-950/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:flex-row sm:items-center sm:px-6">
+      <div className="sticky top-[env(safe-area-inset-top)] z-30 -mx-4 flex flex-col gap-2 border-b border-zinc-800/60 bg-stone-950/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:flex-row sm:items-center sm:px-6">
         <div className="sm:flex-1">
           <MovieSearch existing={existing} addAs={activeTab} />
         </div>
@@ -121,11 +122,13 @@ export default async function Home({ searchParams }: PageProps) {
       </div>
 
       <main className="flex flex-col gap-5 pt-5">
+        <InstallApp />
         {activeTab === "want" && (
           <RandomPick
             movies={wantMovies}
             nameById={nameById}
             memberCount={members.length}
+            autoOpen={pick === "1"}
           />
         )}
         <MovieList

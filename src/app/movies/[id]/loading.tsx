@@ -3,7 +3,7 @@ export default function Loading() {
     <div
       role="status"
       aria-label="Загрузка фильма"
-      className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-6 sm:px-6"
+      className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 pb-6 pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6"
     >
       <div className="h-5 w-24 animate-pulse rounded-md bg-zinc-800/70" />
       <div className="flex flex-col gap-6 sm:flex-row">
