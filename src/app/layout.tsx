@@ -43,6 +43,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           className="pointer-events-none fixed inset-x-0 top-0 z-40 h-[env(safe-area-inset-top)] bg-stone-950"
         />
         <Toaster>{children}</Toaster>
+        {/* TMDB's terms ask apps using its API to credit it and say they aren't endorsed by it. */}
+        <footer className="mt-auto px-4 pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center text-xs text-zinc-600">
+          Данные о фильмах, сериалах и постеры:{" "}
+          <a
+            href="https://www.themoviedb.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-500 hover:text-zinc-300"
+          >
+            TMDB
+          </a>
+          . This product uses the TMDB API but is not endorsed or certified by
+          TMDB.
+        </footer>
         <ServiceWorker />
       </body>
     </html>
